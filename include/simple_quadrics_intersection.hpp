@@ -9,7 +9,7 @@
 
 #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
-#define SQI_VERBOSE_ONLY_COUT(x) std::cout << "[" << __FUNCTION__ << "]" << " " << x << std::endl
+#define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
 #else
 #define SQI_VERBOSE_ONLY_COUT(x)
 #endif
@@ -64,7 +64,7 @@ namespace QuadricsIntersection {
 
 	// get an arbitrary unit vector that is orthogonal to the given vector v
 	inline Eigen::Vector3d get_perpendicular_normal(
-		Eigen::Vector3d& v
+		Eigen::Vector3d v
 	) {
 		Eigen::Vector3d n(0, 0, 0);
 		if (std::abs(v.x()) < SQI_EPS) {
@@ -427,9 +427,16 @@ namespace QuadricsIntersection {
 			t_ = t;
 			s_lb_ = s_lb; s_ub_ = s_ub;
 		}
+		// divide the line into two parts according to s, modify self [s, ub], return [lb, s]
+		void separate_s(ParameterizationCylindricLine& L, double s) {
+			if (s < s_lb_ || s > s_ub_) return;
+			L = *this;
+			L.s_ub_ = s;
+			this->s_lb_ = s;
+		}
 		double& t() { return t_; }
 		double& s_lb() { return s_lb_; }
-		double& s_ib() { return s_ub_; }
+		double& s_ub() { return s_ub_; }
 
 		void output_points(
 			Cylinder& C,
@@ -445,10 +452,12 @@ namespace QuadricsIntersection {
 				SQI_VERBOSE_ONLY_COUT("h or h_seg is invalid!");
 				return;
 			}
-			double center_s = 0.5 * (s_lb_ + s_ub_);
+			double center_s = 0;
 			Eigen::Vector3d cor = C.get_point(center_s, t_);
 			for (double cur_s = -0.5 * h, cur_s_end = 0.5 * h + SQI_EPS; cur_s < cur_s_end; cur_s += h_step) {
-				points.push_back(cor + (center_s + cur_s) * C.nor());
+				if (center_s + cur_s >= s_lb_ && center_s + cur_s <= s_ub_) {
+					points.push_back(cor + (center_s + cur_s) * C.nor());
+				}
 			}
 		}
 	private:
@@ -499,23 +508,31 @@ namespace QuadricsIntersection {
 			}
 			return *this;
 		}
+		bool operator ==(const ParameterizationCylindricCurve& PC) const {
+			if (this == &PC) return true;
+			if (std::equal(this->a_t_.begin(), this->a_t_.end(), PC.a_t_.begin(), PC.a_t_.end()) == false) return false;
+			if (std::equal(this->b_t_.begin(), this->b_t_.end(), PC.b_t_.begin(), PC.b_t_.end()) == false) return false;
+			if (std::equal(this->c_t_.begin(), this->c_t_.end(), PC.c_t_.begin(), PC.c_t_.end()) == false) return false;
+			if (this->s_lb_ != PC.s_lb_ || this->s_ub_ != PC.s_ub_ ||
+				this->t_lb_ != PC.t_lb_ || this->t_ub_ != PC.t_ub_ ||
+				this->s_part_ != PC.s_part_) return false;
+			return true;
+		}
 		// divide the curve into two parts according to s, modify self 1, return -1
 		void separate_s(ParameterizationCylindricCurve& PC) {
 			PC = *this;
 			this->s_part_ = 1;
 			PC.s_part_ = -1;
 		}
-		// devide the curve into two parts according to t, modify self [lb, t], return [t, ub]
+		// divide the curve into two parts according to t, modify self [t, ub], return [lb, t]
 		void separate_t(ParameterizationCylindricCurve& PC, double t) {
 			if (t < t_lb_ || t > t_ub_) return;
 			PC = *this;
-			this->t_ub_ = t;
-			PC.t_lb_ = t;
+			PC.t_ub_ = t;
+			this->t_lb_ = t;
 		}
-		// devide the total curve into two parts according to t1-t2, modify self [t1, t2], return [t2, t1+360]
-		void separate_t(
-			ParameterizationCylindricCurve& PC,
-			double t1, double t2) {
+		// divide the total curve into two parts according to t1-t2, modify self [t1, t2], return [t2, t1+360]
+		void separate_t(ParameterizationCylindricCurve& PC, double t1, double t2) {
 			PC = *this;
 			if (t1 < t2) { // sort to let t1 > t2
 				double tmp_t = t1;
@@ -524,9 +541,7 @@ namespace QuadricsIntersection {
 			this->t_lb_ = t2; this->t_ub_ = t1;
 			PC.t_lb_ = t1; PC.t_ub_ = t2 + 360;
 		}
-		int get_s(
-			double t,
-			std::vector<double>& s) {
+		int get_s(double t, std::vector<double>& s) {
 			// init
 			std::vector<double>().swap(s);
 
@@ -606,7 +621,216 @@ namespace QuadricsIntersection {
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
 	};
 
+	// --------------assessment of the intersection primitives' intersections--------------
+
+	// intersection primitive and intersection primitive
+
+	int get_intersections(
+		ParameterizationCylindricLine& L1, ParameterizationCylindricCurve& PC1,
+		std::vector<ParameterizationCylindricLine>& sub_L1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricLine>().swap(sub_L1s);
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC1s);
+
+		if (L1.t() < PC1.t_lb() + SQI_EPS || L1.t() > PC1.t_ub() - SQI_EPS) { // not intersect
+			SQI_VERBOSE_ONLY_COUT("not intersect");
+		}
+		else { // may intersect
+			std::vector<double> ss;
+			if (PC1.get_s(L1.t(), ss) == 1) {
+				if (ss[0] < L1.s_lb() || ss[0] > L1.s_ub()) { // not intersect
+					SQI_VERBOSE_ONLY_COUT("not intersect");
+				}
+				else { // intersect
+					SQI_VERBOSE_ONLY_COUT("intersect");
+
+					// cut the curve
+					ParameterizationCylindricCurve sub_PC1;
+					PC1.separate_t(sub_PC1, L1.t());
+
+					sub_PC1s.push_back(sub_PC1);
+
+					// cut the line
+					ParameterizationCylindricLine sub_L1;
+					L1.separate_s(sub_L1, ss[0]);
+
+					sub_L1s.push_back(sub_L1);
+				}
+			}
+			else {
+				SQI_VERBOSE_ONLY_COUT("input curves may not monotonicity!");
+				return 0;
+			}
+		}
+
+		return sub_L1s.size() + sub_PC1s.size();
+	}
+
+	int get_intersections(
+		ParameterizationCylindricCurve& PC1, ParameterizationCylindricCurve& PC2,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC2s,
+		double t_step = 1.
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC1s);
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC2s);
+
+		// get overlap parameterization region
+		while (PC1.t_lb() > 360) {
+			PC1.t_lb() -= 360; PC1.t_ub() -= 360;
+		}
+		while (PC2.t_lb() > 360) {
+			PC2.t_lb() -= 360; PC2.t_ub() -= 360;
+		}
+		double overlap_t_lb = std::max(PC1.t_lb(), PC2.t_lb());
+		double overlap_t_ub = std::min(PC1.t_ub(), PC2.t_ub());
+		if (overlap_t_lb > overlap_t_ub - SQI_EPS) { // regions dont overlap
+			SQI_VERBOSE_ONLY_COUT("regions dont overlap");
+		}
+		else { // regions overlap
+			SQI_VERBOSE_ONLY_COUT("regions overlap");
+
+			int pre_status = 0, status = 0;
+			double t = overlap_t_lb - t_step;
+			
+			while (t < overlap_t_ub + t_step) {
+
+				std::vector<double> C1_ss, C2_ss;
+				PC1.get_s(t, C1_ss);
+				PC2.get_s(t, C2_ss);
+				if (C1_ss.size() == 1 && C2_ss.size() == 1) {
+					double C1_s = C1_ss[0];
+					double C2_s = C2_ss[0];
+					status = (C1_s > C2_s) ? 1 : -1;
+
+					if (pre_status != 0) { // pre_status is meaningful
+						if (status == pre_status) { // [pre_t, t] dont have intersection
+						}
+						else { // [pre_t, t] have intersection
+							SQI_VERBOSE_ONLY_COUT("get an intersection");
+
+							// do bisection
+							double t_lb = t - t_step;
+							double t_ub = t;
+							while (t_ub - t_lb < SQI_EPS) {
+								double mid_t = 0.5 * (t_lb + t_ub);
+
+								std::vector<double> ss1, ss2;
+								if (PC1.get_s(mid_t, ss1) == 1 && PC2.get_s(mid_t, ss2) == 1) {
+									int cur_status = (ss1[0] > ss2[0]) ? 1 : -1;
+
+									if (cur_status == pre_status) {
+										t_lb = mid_t;
+
+									}
+									else {
+										t_ub = mid_t;
+									}
+								}
+								else {
+									SQI_VERBOSE_ONLY_COUT("bisection may error!");
+									return 0;
+								}
+							}
+
+							// cut the curves
+							ParameterizationCylindricCurve sub_PC1, sub_PC2;
+							PC1.separate_t(sub_PC1, t_lb);
+							PC2.separate_t(sub_PC2, t_lb);
+							sub_PC1s.push_back(sub_PC1);
+							sub_PC2s.push_back(sub_PC2);
+						}
+					}
+
+					pre_status = status;
+				}
+				else if (C1_ss.size() == 0 || C2_ss.size() == 0) { // may out of region
+				}
+				else { // may error before
+					SQI_VERBOSE_ONLY_COUT("input curves may not monotonicity!");
+					return 0;
+				}
+
+				t += t_step;
+			}
+		}
+
+		// sub_results dont contain original curves
+		// sub_PC1s.push_back(PC1);
+		// sub_PC2s.push_back(PC2);
+
+		return sub_PC1s.size() + sub_PC2s.size();
+	}
+
+	// intersection primitives and intersection primitives
+
+	int get_intersections(
+		std::vector<ParameterizationCylindricLine>& L1s,
+		std::vector<ParameterizationCylindricCurve>& PC1s
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		for (int i = 0; i < L1s.size(); ++i) {
+			ParameterizationCylindricLine* L1 = &L1s[i];
+
+			for (int j = 0; j < PC1s.size(); ++j) {
+				ParameterizationCylindricCurve* PC1 = &PC1s[j];
+
+				std::vector<ParameterizationCylindricLine> sub_L1s;
+				std::vector<ParameterizationCylindricCurve> sub_PC1s;
+				if (get_intersections(*L1, *PC1, sub_L1s, sub_PC1s) > 0) {
+					for (auto sub_L1 : sub_L1s) {
+						L1s.push_back(sub_L1);
+					}
+					for (auto sub_PC1 : sub_PC1s) {
+						PC1s.push_back(sub_PC1);
+					}
+				}
+			}
+		}
+
+		return L1s.size() + PC1s.size();
+	}
+
+	int get_intersections(
+		std::vector<ParameterizationCylindricCurve>& PC1s,
+		std::vector<ParameterizationCylindricCurve>& PC2s,
+		double t_step = 1.
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		for (int i = 0; i < PC1s.size(); ++i) {
+			ParameterizationCylindricCurve* PC1 = &PC1s[i];
+
+			for (int j = 0; j < PC2s.size(); ++j) {
+				ParameterizationCylindricCurve* PC2 = &PC2s[j];
+
+				std::vector<ParameterizationCylindricCurve> sub_PC1s;
+				std::vector<ParameterizationCylindricCurve> sub_PC2s;
+				if (get_intersections(*PC1, *PC2, sub_PC1s, sub_PC2s, t_step) > 0) {
+					for (auto sub_PC1 : sub_PC1s) {
+						PC1s.push_back(sub_PC1);
+					}
+					for (auto sub_PC2 : sub_PC2s) {
+						PC2s.push_back(sub_PC2);
+					}
+				}
+			}
+		}
+
+		return PC1s.size() + PC2s.size();
+	}
+
+
 	// ----------------------------assessment of the intersections----------------------------
+
 	// get the branches that primitives intersected, return the number of branches
 
 	// using cylinder C1 as the parameterization surface
@@ -845,6 +1069,7 @@ namespace QuadricsIntersection {
 				points.push_back(L2_C2_intersect_points[0]);
 			}
 			else { // may result parameterization curves
+
 				// compute a_t
 				double C1_nor_dot_C2_nor = C1.nor().dot(C2.nor());
 				std::vector<double> a_t = {
