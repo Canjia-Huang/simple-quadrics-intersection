@@ -4,14 +4,18 @@
 #include <iostream>
 #include <vector>
 #include <math.h>
+#include <functional>
+#include <unordered_map>
 // Eigen
 #include <Eigen/Dense>
 
 #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
-#define SQI_VERBOSE_ONLY_COUT(x) std::cout << "[" << __FUNCTION__ << "]" << " " << x << std::endl
+#define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
+#define SQI_VERBOSE_ONLY_WARNING(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << "\033[31m" << x << "\033[0m" << std::endl // [yellow] red cout
 #else
 #define SQI_VERBOSE_ONLY_COUT(x)
+#define SQI_VERBOSE_ONLY_WARNING(x)
 #endif
 
 #define SQI_EPS	1e-12
@@ -21,6 +25,16 @@
 
 namespace QuadricsIntersection {
 	// ----------------------------other functions----------------------------
+
+	struct pair_hash {
+		template <class T1, class T2>
+		size_t operator () (std::pair<T1, T2> const& pair
+			) const {
+			size_t h1 = std::hash<T1>()(pair.first);
+			size_t h2 = std::hash<T2>()(pair.second);
+			return h1 ^ h2;
+		}
+	};
 
 	std::vector<Eigen::Vector3d> rand_color_bar;
 	void create_rand_color_bar(int num) {
@@ -42,6 +56,7 @@ namespace QuadricsIntersection {
 		return ang * 0.005555555555556 * SQI_PI;
 	}
 
+	// return the ang of std::asin
 	inline double safetyAsin(double value) {
 		if (value < -1.) {
 			rad2ang(asin(-1.));
@@ -52,6 +67,7 @@ namespace QuadricsIntersection {
 		return rad2ang(asin(value));
 	}
 
+	// return the ang of std::acos
 	inline double safetyAcos(double value) {
 		if (value < -1.) {
 			return rad2ang(acos(-1.));
@@ -64,7 +80,7 @@ namespace QuadricsIntersection {
 
 	// get an arbitrary unit vector that is orthogonal to the given vector v
 	inline Eigen::Vector3d get_perpendicular_normal(
-		Eigen::Vector3d& v
+		Eigen::Vector3d v
 	) {
 		Eigen::Vector3d n(0, 0, 0);
 		if (std::abs(v.x()) < SQI_EPS) {
@@ -121,7 +137,7 @@ namespace QuadricsIntersection {
 			std::vector<Eigen::Vector3i>& faces,
 			double w = 10., double h = 10.
 		) {
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			// init
 			std::vector<Eigen::Vector3d>().swap(points);
@@ -143,12 +159,17 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the unit normal of the plane
 	};
 
+	/* Parameterization cylinder
+	* C(s, t) = cor + r * (cos(t) * u + sin(t) * v) + s * nor 
+	* t = [0, 360], s = [-infty, +infty] */
 	class Cylinder {
 	public:
 		Cylinder() {};
 		~Cylinder() {};
 		Cylinder(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
-			cor_ = cor; nor_ = nor.normalized(); r_ = std::abs(r);
+			nor.normalize();
+			cor_ = cor; nor_ = nor; 
+			r_ = std::abs(r);
 			u_ = get_perpendicular_normal(nor);
 			v_ = nor.cross(u_).normalized();
 		}
@@ -180,10 +201,10 @@ namespace QuadricsIntersection {
 			int seg = 32, double h = 20.
 		) {
 			if (seg < 3) {
-				SQI_VERBOSE_ONLY_COUT("input seg num is invalid!");
+				SQI_VERBOSE_ONLY_WARNING("input seg num is invalid!");
 				return;
 			}
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			// init
 			std::vector<Eigen::Vector3d>().swap(points);
@@ -216,15 +237,47 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the cylinder's axis, used for parameterization representation
 	};
 
+	/* Parameterization sphere
+	* S(s, t) = cor + r * (cos(t) * u + sin(t) * v) * sin(s) + r * cos(s) * nor 
+	* t = [0, 360], s = [0, 180] */
 	class Sphere {
 	public:
 		Sphere() {};
 		~Sphere() {};
 		Sphere(Eigen::Vector3d cor, double r) {
-			cor_ = cor; r_ = std::abs(r);
+			cor_ = cor; nor_ = Eigen::Vector3d(0, 0, 1);
+			r_ = std::abs(r);
+			u_ = get_perpendicular_normal(nor_);
+			v_ = nor_.cross(u_).normalized();
+		}
+		Sphere(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
+			nor.normalize();
+			cor_ = cor; nor_ = nor;
+			r_ = std::abs(r);
+			u_ = get_perpendicular_normal(nor);
+			v_ = nor.cross(u_).normalized();
+		}
+		Eigen::Vector3d get_point(double s, double t) {
+			double rad_s = ang2rad(s);
+			double rad_t = ang2rad(t);
+			return cor_ + r_ * (std::cos(rad_t) * u_ + std::sin(rad_t) * v_) * std::sin(rad_s) + r_ * std::cos(rad_s) * nor_;
+		}
+		void get_s_t(Eigen::Vector3d p, double& s, double& t) {
+			s = safetyAcos((p - cor_).dot(nor_) / r_);
+			Eigen::Vector3d plane_cor = p - r_ * std::cos(ang2rad(s)) * nor_;
+			Eigen::Vector3d plane_cor_cor = (plane_cor - cor_).normalized();
+			double tu_component = plane_cor_cor.dot(u_);
+			double tv_component = plane_cor_cor.dot(v_);
+			t = safetyAcos(tu_component);
+			if (std::abs(std::sin(ang2rad(t)) - tv_component) > SQI_EPS) {
+				t = 360 - t;
+			}
 		}
 
 		Eigen::Vector3d& cor() { return cor_; }
+		Eigen::Vector3d& nor() { return nor_; }
+		Eigen::Vector3d& u() { return u_; }
+		Eigen::Vector3d& v() { return v_; }
 		double& r() { return r_; }
 
 		void output_model(
@@ -233,14 +286,14 @@ namespace QuadricsIntersection {
 			int h_seg = 32, int r_seg = 32
 		) {
 			if (h_seg < 3) {
-				SQI_VERBOSE_ONLY_COUT("input h_seg num is invalid!");
+				SQI_VERBOSE_ONLY_WARNING("input h_seg num is invalid!");
 				return;
 			}
 			if (r_seg < 3) {
-				SQI_VERBOSE_ONLY_COUT("input r_seg num is invalid!");
+				SQI_VERBOSE_ONLY_WARNING("input r_seg num is invalid!");
 				return;
 			}
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			// init
 			std::vector<Eigen::Vector3d>().swap(points);
@@ -252,19 +305,23 @@ namespace QuadricsIntersection {
 
 			for (double phi = 0, phi_end = 180 + SQI_EPS; phi < phi_end; phi += h_angle) {
 				if (phi < SQI_EPS) {
-					points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, 1));
+					points.push_back(get_point(phi, 0));
+					// points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, 1));
 				}
 				else if (std::abs(phi - 180) < SQI_EPS) {
-					points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, -1));
+					points.push_back(get_point(phi, 0));
+					// points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, -1));
 				}
 				else {
 					for (double theta = 0, theta_end = 360 - SQI_EPS; theta < theta_end; theta += r_angle) {
+						points.push_back(get_point(phi, theta));
+						/*
 						points.push_back(
 							cor_ + Eigen::Vector3d(
 								r_ * std::sin(ang2rad(phi)) * std::cos(ang2rad(theta)),
 								r_ * std::sin(ang2rad(phi)) * std::sin(ang2rad(theta)),
 								r_ * std::cos(ang2rad(phi))
-							));
+							));*/
 					}
 				}
 			}
@@ -306,10 +363,13 @@ namespace QuadricsIntersection {
 		}
 	private:
 		Eigen::Vector3d cor_; // the center of the sphere
+		Eigen::Vector3d nor_; // the unit vector of the sphere's axis
+		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the cylinder's axis, used for parameterization representation
 		double r_; // the radius of the sphere
 	};
 
 	// ----------------------------the intersection primitives----------------------------
+
 	class Point {
 	public:
 		Point() {};
@@ -355,7 +415,7 @@ namespace QuadricsIntersection {
 			std::vector<Eigen::Vector3d>& points,
 			double l = 30., int seg = 100
 		) {
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			// init
 			std::vector<Eigen::Vector3d>().swap(points);
@@ -370,22 +430,49 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the vector of the line
 	};
 
-	class Circle {
+	class ParameterizationCircle {
+		// C(t) = cor_ + r_ * (cos(t) * u_ + sin(t) * v)
 	public:
-		Circle() {};
-		~Circle() {};
-		Circle(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
-			cor_ = cor; nor_ = nor.normalized(); r_ = r;
+		ParameterizationCircle() {
+			t_lb_ = 0; t_ub_ = 360;
+		};
+		~ParameterizationCircle() {};
+		ParameterizationCircle(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
+			nor.normalize();
+			cor_ = cor; nor_ = nor; r_ = r;
+			u_ = get_perpendicular_normal(nor_);
+			v_ = nor_.cross(u_).normalized();
+			t_lb_ = 0; t_ub_ = 360;
+		}
+		Eigen::Vector3d get_point(double t) {
+			double rad_t = ang2rad(t);
+			return cor_ + r_ * (std::cos(rad_t) * u_ + std::sin(rad_t) * v_);
 		}
 
 		Eigen::Vector3d& cor() { return cor_; }
 		Eigen::Vector3d& nor() { return nor_; }
+		Eigen::Vector3d& u() { return u_; }
+		Eigen::Vector3d& v() { return v_; }
 		double& r() { return r_; }
+		double& t_lb() { return t_lb_; }
+		double& t_ub() { return t_ub_; }
 
+		void output_points(
+			std::vector<Eigen::Vector3d>& points,
+			double t_step = 0.5) {
+			std::vector<Eigen::Vector3d>().swap(points);
+
+			for (double t = t_lb_, t_end = t_ub_ - SQI_EPS; t < t_end; t += t_step) {
+				points.push_back(get_point(t));
+			}
+			points.push_back(get_point(t_ub_));
+		}
 	private:
-		Eigen::Vector3d cor_; // the center of the circle
-		Eigen::Vector3d nor_; // the vector that perpendicular to the plane that the circle lies
-		double r_;
+		Eigen::Vector3d cor_; // circle's center
+		Eigen::Vector3d nor_; // the vector perpendicular to the circle
+		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the circle's nor_, used for parameterization representation
+		double r_; // circle's radius
+		double t_lb_, t_ub_;
 	};
 
 	class ParameterizationCylindricPoint {
@@ -405,7 +492,8 @@ namespace QuadricsIntersection {
 			Cylinder& C,
 			std::vector<Eigen::Vector3d>& points
 		) {
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
+
 			std::vector<Eigen::Vector3d>().swap(points);
 			points.push_back(C.get_point(s_, t_));
 		}
@@ -427,28 +515,40 @@ namespace QuadricsIntersection {
 			t_ = t;
 			s_lb_ = s_lb; s_ub_ = s_ub;
 		}
+		// divide the line into two parts according to s, modify self [s, ub], return [lb, s]
+		void separate_s(ParameterizationCylindricLine& L, double s) {
+			if (s < s_lb_ || s > s_ub_) {
+				SQI_VERBOSE_ONLY_WARNING("input s out of L's bound");
+				return;
+			}
+			L = *this;
+			L.s_ub_ = s;
+			this->s_lb_ = s;
+		}
 		double& t() { return t_; }
 		double& s_lb() { return s_lb_; }
-		double& s_ib() { return s_ub_; }
+		double& s_ub() { return s_ub_; }
 
 		void output_points(
 			Cylinder& C,
 			std::vector<Eigen::Vector3d>& points,
 			double h = 20., int h_seg = 100
 		) {
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			std::vector<Eigen::Vector3d>().swap(points);
 
 			double h_step = h / h_seg;
 			if (h_step < SQI_EPS) {
-				SQI_VERBOSE_ONLY_COUT("h or h_seg is invalid!");
+				SQI_VERBOSE_ONLY_WARNING("h or h_seg is invalid!");
 				return;
 			}
-			double center_s = 0.5 * (s_lb_ + s_ub_);
+			double center_s = 0;
 			Eigen::Vector3d cor = C.get_point(center_s, t_);
 			for (double cur_s = -0.5 * h, cur_s_end = 0.5 * h + SQI_EPS; cur_s < cur_s_end; cur_s += h_step) {
-				points.push_back(cor + (center_s + cur_s) * C.nor());
+				if (center_s + cur_s >= s_lb_ && center_s + cur_s <= s_ub_) {
+					points.push_back(cor + (center_s + cur_s) * C.nor());
+				}
 			}
 		}
 	private:
@@ -489,7 +589,14 @@ namespace QuadricsIntersection {
 			s_lb_ = s_lb; s_ub_ = s_ub; t_lb_ = t_lb; t_ub_ = t_ub;
 			s_part_ = s_part;
 		}
-		ParameterizationCylindricCurve& operator =(ParameterizationCylindricCurve& PC) {
+		ParameterizationCylindricCurve(const ParameterizationCylindricCurve& PC) {
+			this->a_t_ = PC.a_t_;
+			this->b_t_ = PC.b_t_;
+			this->c_t_ = PC.c_t_;
+			this->s_lb_ = PC.s_lb_; this->s_ub_ = PC.s_ub_; this->t_lb_ = PC.t_lb_; this->t_ub_ = PC.t_ub_;
+			this->s_part_ = PC.s_part_;
+		}
+		ParameterizationCylindricCurve& operator =(const ParameterizationCylindricCurve& PC) {
 			if (this != &PC) {
 				this->a_t_ = PC.a_t_;
 				this->b_t_ = PC.b_t_;
@@ -499,23 +606,35 @@ namespace QuadricsIntersection {
 			}
 			return *this;
 		}
-		// divide the curve into two parts according to s, modify self 1, return -1
+		bool operator ==(const ParameterizationCylindricCurve& PC) const {
+			if (this == &PC) return true;
+			if (std::equal(this->a_t_.begin(), this->a_t_.end(), PC.a_t_.begin(), PC.a_t_.end()) == false) return false;
+			if (std::equal(this->b_t_.begin(), this->b_t_.end(), PC.b_t_.begin(), PC.b_t_.end()) == false) return false;
+			if (std::equal(this->c_t_.begin(), this->c_t_.end(), PC.c_t_.begin(), PC.c_t_.end()) == false) return false;
+			if (this->s_lb_ != PC.s_lb_ || this->s_ub_ != PC.s_ub_ ||
+				this->t_lb_ != PC.t_lb_ || this->t_ub_ != PC.t_ub_ ||
+				this->s_part_ != PC.s_part_) return false;
+			return true;
+		}
+		/* Divide this curve into 2 parts according to s, modify self 1, output -1. */
 		void separate_s(ParameterizationCylindricCurve& PC) {
 			PC = *this;
 			this->s_part_ = 1;
 			PC.s_part_ = -1;
 		}
-		// devide the curve into two parts according to t, modify self [lb, t], return [t, ub]
-		void separate_t(ParameterizationCylindricCurve& PC, double t) {
-			if (t < t_lb_ || t > t_ub_) return;
+		/* Divide this curve into 2 parts according to t, modify self [t, ub], output [lb, t] */
+		int separate_t(ParameterizationCylindricCurve& PC, double t) {
+			if (t < t_lb_ || t > t_ub_) {
+				SQI_VERBOSE_ONLY_WARNING("input t out of PC's bound");
+				return 0;
+			}
 			PC = *this;
-			this->t_ub_ = t;
-			PC.t_lb_ = t;
+			PC.t_ub_ = t;
+			this->t_lb_ = t;
+			return 1;
 		}
-		// devide the total curve into two parts according to t1-t2, modify self [t1, t2], return [t2, t1+360]
-		void separate_t(
-			ParameterizationCylindricCurve& PC,
-			double t1, double t2) {
+		/* Divide this curve into two parts according to t1-t2 in the total parameterization region, modify self [t1, t2], output [t2, t1+360] */
+		void separate_t(ParameterizationCylindricCurve& PC, double t1, double t2) {
 			PC = *this;
 			if (t1 < t2) { // sort to let t1 > t2
 				double tmp_t = t1;
@@ -524,9 +643,7 @@ namespace QuadricsIntersection {
 			this->t_lb_ = t2; this->t_ub_ = t1;
 			PC.t_lb_ = t1; PC.t_ub_ = t2 + 360;
 		}
-		int get_s(
-			double t,
-			std::vector<double>& s) {
+		int get_s(double t, std::vector<double>& s) {
 			// init
 			std::vector<double>().swap(s);
 
@@ -540,7 +657,7 @@ namespace QuadricsIntersection {
 
 			if (std::abs(a) < SQI_EPS) { // not a bisecond equation
 				if (std::abs(b) < SQI_EPS) { // not a first-degree equation
-					SQI_VERBOSE_ONLY_COUT("cannot get the value of s");
+					// SQI_VERBOSE_ONLY_COUT("cannot get the value of s");
 				}
 				else { // is a firt-degree equation
 					s.push_back(-c / b);
@@ -561,6 +678,10 @@ namespace QuadricsIntersection {
 			}
 
 			return s.size();
+		}
+		bool is_valid() {
+			if (a_t_.size() != 1 || b_t_.size() != 3 || c_t_.size() != 6)	return false;
+			return true;
 		}
 		std::vector<double>& a_t() { return a_t_; }
 		std::vector<double>& b_t() { return b_t_; }
@@ -583,7 +704,7 @@ namespace QuadricsIntersection {
 			std::vector<Eigen::Vector3d>& points,
 			double t_step = 0.5
 		) {
-			SQI_VERBOSE_ONLY_COUT("");
+			// SQI_VERBOSE_ONLY_COUT("");
 
 			std::vector<Eigen::Vector3d>().swap(points);
 
@@ -606,10 +727,209 @@ namespace QuadricsIntersection {
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
 	};
 
-	// ----------------------------assessment of the intersections----------------------------
-	// get the branches that primitives intersected, return the number of branches
+	// --------------assessment of the intersection primitives' intersections--------------
 
-	// using cylinder C1 as the parameterization surface
+	/*	Get the results of the intersection between a parameterization Line L1 and a parameterization Curve PC1.
+	*	This function will involve clipping the original input, and outputting other clipped lines and curves through std::vector.
+	*	Return The number of newly generated lines and curves. 
+	*/
+	int get_intersections(
+		ParameterizationCylindricLine& L1, ParameterizationCylindricCurve& PC1,
+		std::vector<ParameterizationCylindricLine>& sub_L1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s
+	) {
+		// SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricLine>().swap(sub_L1s);
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC1s);
+
+		if (L1.t() < PC1.t_lb() + SQI_EPS || L1.t() > PC1.t_ub() - SQI_EPS) { // not intersect
+			// SQI_VERBOSE_ONLY_COUT("not intersect");
+		}
+		else { // may intersect
+			std::vector<double> ss;
+			if (PC1.get_s(L1.t(), ss) == 1) {
+				if (ss[0] < L1.s_lb() || ss[0] > L1.s_ub()) { // not intersect
+					// SQI_VERBOSE_ONLY_COUT("not intersect");
+				}
+				else { // intersect
+					// SQI_VERBOSE_ONLY_COUT("intersect");
+
+					// cut the curve
+					ParameterizationCylindricCurve sub_PC1;
+					PC1.separate_t(sub_PC1, L1.t());
+
+					sub_PC1s.push_back(sub_PC1);
+
+					// cut the line
+					ParameterizationCylindricLine sub_L1;
+					L1.separate_s(sub_L1, ss[0]);
+
+					sub_L1s.push_back(sub_L1);
+				}
+			}
+			else {
+				SQI_VERBOSE_ONLY_WARNING("input curves may not monotonicity!");
+				return 0;
+			}
+		}
+
+		return sub_L1s.size() + sub_PC1s.size();
+	}
+
+	/*	Get the results of the intersection between a parameterization Curve PC1 and a parameterization Curve PC2.
+	*	This function will involve clipping the original input, and outputting other clipped curves through std::vector.
+	*	Return the number of newly generated curves. 
+	*/
+	int get_intersections(
+		ParameterizationCylindricCurve& PC1, ParameterizationCylindricCurve& PC2,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC2s,
+		double t_step = 1.
+	) {
+		// SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC1s);
+		std::vector<ParameterizationCylindricCurve>().swap(sub_PC2s);
+
+		// get overlap parameterization region
+		while (PC1.t_lb() > 360) {
+			PC1.t_lb() -= 360; PC1.t_ub() -= 360;
+		}
+		while (PC2.t_lb() > 360) {
+			PC2.t_lb() -= 360; PC2.t_ub() -= 360;
+		}
+		double overlap_t_lb = std::max(PC1.t_lb(), PC2.t_lb());
+		double overlap_t_ub = std::min(PC1.t_ub(), PC2.t_ub());
+		if (overlap_t_lb > overlap_t_ub - SQI_EPS) { // regions dont overlap
+			// SQI_VERBOSE_ONLY_COUT("regions dont overlap");
+		}
+		else { // regions overlap
+			// SQI_VERBOSE_ONLY_COUT("regions overlap");
+
+			int pre_status = 0, status = 0;
+			double t = overlap_t_lb + SQI_EPS;
+			
+			while (t < overlap_t_ub + t_step - SQI_EPS) {
+
+				std::vector<double> C1_ss, C2_ss;
+				PC1.get_s(t, C1_ss);
+				PC2.get_s(t, C2_ss);
+				if (C1_ss.size() == 1 && C2_ss.size() == 1) {
+					double C1_s = C1_ss[0];
+					double C2_s = C2_ss[0];
+					status = (C1_s > C2_s) ? 1 : -1;
+
+					if (pre_status != 0) { // pre_status is meaningful
+						if (status == pre_status) { // [pre_t, t] dont have intersection
+						}
+						else { // [pre_t, t] have intersection
+							// SQI_VERBOSE_ONLY_COUT("get an intersection");
+
+							// do bisection
+							double t_lb = t - t_step;
+							double t_ub = t;
+							while (t_ub - t_lb < SQI_EPS) {
+								double mid_t = 0.5 * (t_lb + t_ub);
+
+								std::vector<double> ss1, ss2;
+								if (PC1.get_s(mid_t, ss1) == 1 && PC2.get_s(mid_t, ss2) == 1) {
+									int cur_status = (ss1[0] > ss2[0]) ? 1 : -1;
+
+									if (cur_status == pre_status) t_lb = mid_t;
+									else t_ub = mid_t;
+								}
+								else {
+									SQI_VERBOSE_ONLY_WARNING("bisection may error!");
+									return 0;
+								}
+							}
+
+							// cut the curves
+							ParameterizationCylindricCurve sub_PC1, sub_PC2;
+							if (PC1.separate_t(sub_PC1, t_lb) == 1) sub_PC1s.push_back(sub_PC1);
+							if (PC2.separate_t(sub_PC2, t_lb) == 1) sub_PC2s.push_back(sub_PC2);
+						}
+					}
+
+					pre_status = status;
+				}
+				else if (C1_ss.size() == 0 || C2_ss.size() == 0) { // may out of region
+				}
+				else { // may error before
+					SQI_VERBOSE_ONLY_WARNING("input curves may not monotonicity!");
+					return 0;
+				}
+
+				t += t_step;
+			}
+		}
+
+		return sub_PC1s.size() + sub_PC2s.size();
+	}
+
+	/*	Get the results of the intersection between parameterization Lines L1s and parameterization Curves PC1s, and the results are stored in the original input std::vector.
+	*	Return the number of total lines and curves. 
+	*/
+	int get_intersections(
+		std::vector<ParameterizationCylindricLine>& L1s,
+		std::vector<ParameterizationCylindricCurve>& PC1s
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		for (int i = 0; i < L1s.size(); ++i) { // note: the vector L1s's size is dymanic, so cannot use i_end = L1s.size.
+			for (int j = 0, j_end = PC1s.size(); j <j_end; ++j) { // note: the vector PC1s's size is dymanic, but the newly added curves do not need to be judged again.
+				ParameterizationCylindricLine* L1 = &L1s[i];
+				ParameterizationCylindricCurve* PC1 = &PC1s[j];
+
+				std::vector<ParameterizationCylindricLine> sub_L1s;
+				std::vector<ParameterizationCylindricCurve> sub_PC1s;
+				if (get_intersections(*L1, *PC1, sub_L1s, sub_PC1s) > 0) {
+
+					for (auto l : sub_L1s) L1s.push_back(l);
+					for (auto pc : sub_PC1s) PC1s.push_back(pc);
+				}
+			}
+		}
+
+		return L1s.size() + PC1s.size();
+	}
+
+	/*	Get the results of the intersection between parameterization Curves PC1s and parameterization Curves PC2s, and the results are stored in the original input std::vector.
+	*   Return the number of total curves. 
+	*/
+	int get_intersections(
+		std::vector<ParameterizationCylindricCurve>& PC1s,
+		std::vector<ParameterizationCylindricCurve>& PC2s,
+		double t_step = 1.
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		for (int i = 0; i < PC1s.size(); ++i) { // note: the vector PC1s's size is dymanic, so cannot use i_end = PC1s.size.
+			for (int j = 0, j_end = PC2s.size(); j < j_end; ++j) { // note: the vector PC2s's size is dymanic, but the newly added curves do not need to be judged again.				
+				ParameterizationCylindricCurve* PC1 = &PC1s[i];
+				ParameterizationCylindricCurve* PC2 = &PC2s[j];
+
+				std::vector<ParameterizationCylindricCurve> sub_PC1s;
+				std::vector<ParameterizationCylindricCurve> sub_PC2s;
+				if (get_intersections(*PC1, *PC2, sub_PC1s, sub_PC2s, t_step) > 0) {
+					for (auto pc : sub_PC1s) PC1s.push_back(pc);
+					for (auto pc : sub_PC2s) PC2s.push_back(pc);
+				}
+			}
+		}
+
+		return PC1s.size() + PC2s.size();
+	}
+
+	// ----------------------------assessment of the intersections----------------------------
+
+	/* Get the intersections between Line L1 and Cylinder C1.
+	/note: using Cylinder C1 as the parameterizatoin surface.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Line L1, Cylinder C1,
 		std::vector<ParameterizationCylindricPoint>& points
@@ -666,17 +986,19 @@ namespace QuadricsIntersection {
 	// ****** using plane as the parameterization surface ******
 
 	// ****** using cylinder as the parameterization surface ******
-	// C(s,t) = cor + r * (cos(t) * u + sin(t) * v) + s * nor
 
-	// using cylinder C1 as the parameterization surface
+	/* Get the intersections between Plane P1 and Cylinder C1.
+	/note: using Cylinder C1 as the parameterizatoin surface.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Plane& P1, Cylinder& C1,
 		std::vector<ParameterizationCylindricLine>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
 		SQI_VERBOSE_ONLY_COUT("");
-		SQI_VERBOSE_ONLY_COUT("plane" << " " << "cor:" << P1.cor().transpose() << " " << "nor:" << P1.nor().transpose());
-		SQI_VERBOSE_ONLY_COUT("cylinder" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
+		// SQI_VERBOSE_ONLY_COUT("plane" << " " << "cor:" << P1.cor().transpose() << " " << "nor:" << P1.nor().transpose());
+		// SQI_VERBOSE_ONLY_COUT("cylinder" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
 
 		// init 
 		std::vector<ParameterizationCylindricLine>().swap(lines);
@@ -745,7 +1067,10 @@ namespace QuadricsIntersection {
 		return lines.size() + curves.size();
 	}
 
-	// using cylinder C2 as the parameterization surface
+	/* Get the intersections between Cylinder C1 and Cylinder C2.
+	/note: using Cylinder C2 as the parameterizatoin surface.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Cylinder& C1, Cylinder& C2,
 		std::vector<ParameterizationCylindricPoint>& points,
@@ -753,8 +1078,8 @@ namespace QuadricsIntersection {
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
 		SQI_VERBOSE_ONLY_COUT("");
-		SQI_VERBOSE_ONLY_COUT("cylinder1" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
-		SQI_VERBOSE_ONLY_COUT("cylinder2" << " " << "cor:" << C2.cor().transpose() << " " << "nor:" << C2.nor().transpose() << " " << "r:" << C2.r());
+		// SQI_VERBOSE_ONLY_COUT("cylinder1" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
+		// SQI_VERBOSE_ONLY_COUT("cylinder2" << " " << "cor:" << C2.cor().transpose() << " " << "nor:" << C2.nor().transpose() << " " << "r:" << C2.r());
 
 		// init
 		std::vector<ParameterizationCylindricPoint>().swap(points);
@@ -845,6 +1170,7 @@ namespace QuadricsIntersection {
 				points.push_back(L2_C2_intersect_points[0]);
 			}
 			else { // may result parameterization curves
+
 				// compute a_t
 				double C1_nor_dot_C2_nor = C1.nor().dot(C2.nor());
 				std::vector<double> a_t = {
@@ -955,15 +1281,18 @@ namespace QuadricsIntersection {
 		return points.size() + lines.size() + curves.size();
 	}
 
-	// using C1 as the parameterization surface
+	/* Get the intersections between Sphere S1 and Cylinder C1.
+	/note: using Cylinder C1 as the parameterizatoin surface.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Sphere& S1, Cylinder& C1,
 		std::vector<ParameterizationCylindricPoint>& points,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
 		SQI_VERBOSE_ONLY_COUT("");
-		SQI_VERBOSE_ONLY_COUT("cylinder1" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
-		SQI_VERBOSE_ONLY_COUT("sphere1" << " " << "cor:" << S1.cor().transpose() << " " << "r:" << S1.r());
+		// SQI_VERBOSE_ONLY_COUT("cylinder1" << " " << "cor:" << C1.cor().transpose() << " " << "nor:" << C1.nor().transpose() << " " << "r:" << C1.r());
+		// SQI_VERBOSE_ONLY_COUT("sphere1" << " " << "cor:" << S1.cor().transpose() << " " << "r:" << S1.r());
 
 		// init
 		std::vector<ParameterizationCylindricPoint>().swap(points);
@@ -1054,16 +1383,202 @@ namespace QuadricsIntersection {
 
 	// ****** using sphere as the parameterization surface ******
 
+	/* Get the intersections between Plane P1 and Sphere S1.
+	/note: using the vector from S2's center to a point on P1 as the parameterizatoin circle's normal.
+	*  Return the number of intersections.
+	*/
+	int get_intersections(
+		Plane& P1, Sphere& S1,
+		std::vector<Point>& points,
+		std::vector<ParameterizationCircle>& circles
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init 
+		std::vector<Point>().swap(points);
+		std::vector<ParameterizationCircle>().swap(circles);
+
+		Eigen::Vector3d S1_cor_to_P1_cor = P1.cor() - S1.cor();
+		double P1_S1_cor_dot_P1_nor = S1_cor_to_P1_cor.dot(P1.nor());
+		double P1_S1_cor_dis = std::abs(P1_S1_cor_dot_P1_nor);
+
+		if (P1_S1_cor_dis > S1.r() + SQI_EPS) { // not intersect
+			SQI_VERBOSE_ONLY_COUT("not intersect");
+		}
+		else {
+			if (P1_S1_cor_dis > S1.r() - SQI_EPS) { // tangent
+				SQI_VERBOSE_ONLY_COUT("tangent");
+
+				points.push_back(Point(S1.cor() + P1_S1_cor_dot_P1_nor * P1.nor()));
+			}
+			else { // intersect
+				SQI_VERBOSE_ONLY_COUT("intersect");
+
+				Eigen::Vector3d circle_center = S1.cor() + P1_S1_cor_dot_P1_nor * P1.nor();
+				Eigen::Vector3d circle_nor = P1.nor();
+				if (P1_S1_cor_dot_P1_nor < 0) circle_nor = -circle_nor;
+				double circle_r = std::sqrt(S1.r() * S1.r() - P1_S1_cor_dis * P1_S1_cor_dis);
+
+				circles.push_back(ParameterizationCircle(circle_center, -P1.nor(), circle_r));
+			}
+		}
+
+		return points.size() + circles.size();
+	}
+
+	/* Get the intersections between Cylinder C1 and Sphere S1.
+	/note: using Cylinder C1 as the parameterizatoin surface.
+	*  Return the number of intersections.
+	*/
+	int get_intersections(
+		Cylinder& C1, Sphere& S1,
+		std::vector<ParameterizationCylindricPoint>& points,
+		std::vector<ParameterizationCylindricCurve>& curves
+	) {
+		return get_intersections(S1, C1, points, curves);
+	}
+
+	/* Get the intersections between Sphere S1 and Sphere S2.
+	/note: using the vector from S2's center to S1's center as the parameterizatoin circle's normal.
+	*  Return the number of intersections.
+	*/
+	int get_intersections(
+		Sphere& S1, Sphere& S2,
+		std::vector<Point>& points,
+		std::vector<ParameterizationCircle>& circles
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<Point>().swap(points);
+		std::vector<ParameterizationCircle>().swap(circles);
+
+		Eigen::Vector3d S2_cor_to_S1_cor = S1.cor() - S2.cor();
+		double centers_dis = S2_cor_to_S1_cor.norm();
+
+		if (centers_dis < SQI_EPS) { // overlap: result nothing
+			SQI_VERBOSE_ONLY_COUT("overlap");
+		}
+		else {
+			Eigen::Vector3d S2_cor_to_S1_cor_unit = S2_cor_to_S1_cor / centers_dis;
+
+			if (centers_dis > S1.r() + S2.r() + SQI_EPS) { // not intersect
+				SQI_VERBOSE_ONLY_COUT("not intersect");
+			}
+			else if (centers_dis > S1.r() + S2.r() - SQI_EPS) { // tangent: result a point
+				SQI_VERBOSE_ONLY_COUT("tangent");
+
+				points.push_back(Point(S2.cor() + S2.r() * S2_cor_to_S1_cor_unit));
+			}
+			else { // intersect: result a circle
+				SQI_VERBOSE_ONLY_COUT("intersect");
+
+				Eigen::Vector3d circle_center = S2.cor() + 0.5 * S2_cor_to_S1_cor;
+				double circle_r = std::sqrt(S2.r() * S2.r() - 0.25 * centers_dis * centers_dis);
+
+				circles.push_back(
+					ParameterizationCircle(circle_center, S2_cor_to_S1_cor_unit, circle_r));
+			}
+		}
+
+		return points.size() + circles.size();
+	}
+
+	// ----------------------------use for testing----------------------------
+
+	/* Get the intersections between Cylinder C1 and other primitives.
+	/note: using Cylinder C1 as the parameterization surface.
+	Return the number of all intersections.
+	*/
+	int get_intersections(
+		Cylinder& C1,
+		std::vector<Plane>& planes,
+		std::vector<Cylinder>& cylinders,
+		std::vector<Sphere>& spheres,
+		std::vector<ParameterizationCylindricPoint>& res_points,
+		std::vector<ParameterizationCylindricLine>& res_lines,
+		std::vector<ParameterizationCylindricCurve>& res_curves
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricPoint>().swap(res_points);
+		std::vector<ParameterizationCylindricLine>().swap(res_lines);
+		std::vector<ParameterizationCylindricCurve>().swap(res_curves);
+		std::vector<std::vector<ParameterizationCylindricPoint>> res_points_array;
+		std::vector<std::vector<ParameterizationCylindricLine>> res_lines_array;
+		std::vector<std::vector<ParameterizationCylindricCurve>> res_curves_array;
+
+		// get the intersections between cylinder C1 and other primitives
+		for (int i = 0, i_end = planes.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricLine> lines;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(planes[i], C1, lines, curves);
+
+			res_lines_array.push_back(lines);
+			res_curves_array.push_back(curves);
+		}
+		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint> points;
+			std::vector<ParameterizationCylindricLine> lines;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(cylinders[i], C1, points, lines, curves);
+
+			res_points_array.push_back(points);
+			res_lines_array.push_back(lines);
+			res_curves_array.push_back(curves);
+		}
+		for (int i = 0, i_end = spheres.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint> points;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(spheres[i], C1, points, curves);
+
+			res_points_array.push_back(points);
+			res_curves_array.push_back(curves);
+		}
+
+		// process the intersections' intersections
+		for (int i = 0, i_end = res_points_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint>* points = &(res_points_array[i]);
+
+			res_points.insert(res_points.end(), points->begin(), points->end());
+		}
+		for (int i = 0, i_end = res_curves_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricCurve>* curves = &(res_curves_array[i]);
+
+			if (res_curves.size() != 0) {
+				get_intersections(*curves, res_curves);
+			}
+
+			res_curves.insert(res_curves.end(), curves->begin(), curves->end());
+		}
+		for (int i = 0, i_end = res_lines_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricLine>* lines = &(res_lines_array[i]);
+
+			if (res_curves.size() != 0) {
+				get_intersections(*lines, res_curves);
+			}
+
+			res_lines.insert(res_lines.end(), lines->begin(), lines->end());
+		}
+
+		return res_points.size() + res_lines.size() + res_curves.size();
+	}
+
 	// ----------------------------output for debug----------------------------
 
-	// output primitives to an OBJ-type file
+	/* Output the primitives as the meshes and export to an OBJ file. 
+	*/
 	void write_result_mesh(
 		std::string output_file_path,
 		std::vector<Plane>& planes,
 		std::vector<Cylinder>& cylinders,
 		std::vector<Sphere>& spheres
 	) {
-		SQI_VERBOSE_ONLY_COUT("");
+		// SQI_VERBOSE_ONLY_COUT("");
 
 		std::ofstream out(output_file_path);
 
@@ -1106,7 +1621,9 @@ namespace QuadricsIntersection {
 		out.close();
 	}
 
-	// output points of the curves on the cylinder C
+	/* Output the intersection primitives as points and export to an OBJ file. 
+	/note: using Cylinder C as the parameterization surface.
+	*/
 	void write_cylinder_result_points(
 		std::string output_file_path,
 		Cylinder& C,
@@ -1114,7 +1631,7 @@ namespace QuadricsIntersection {
 		std::vector<ParameterizationCylindricLine>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
-		SQI_VERBOSE_ONLY_COUT("");
+		// SQI_VERBOSE_ONLY_COUT("");
 
 		int primitive_num = points.size() + lines.size() + curves.size();
 		if (rand_color_bar.size() < primitive_num) {
@@ -1149,6 +1666,30 @@ namespace QuadricsIntersection {
 
 			for (Eigen::Vector3d p : output_points) {
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
+			}
+		}
+		out.close();
+	}
+
+	/* Output the intersection primitives as points and export to an OBJ file.
+	*/
+	void write_sphere_result_points(
+		std::string output_file_path,
+		std::vector<Point>& points,
+		std::vector<ParameterizationCircle>& circles
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		std::ofstream out(output_file_path);
+		for (Point p : points) {
+			out << "v" << " " << p.cor().transpose() << std::endl;
+		}
+		for (ParameterizationCircle c : circles) {
+			std::vector<Eigen::Vector3d> ops;
+			c.output_points(ops);
+
+			for (Eigen::Vector3d p : ops) {
+				out << "v" << " " << p.transpose() << std::endl;
 			}
 		}
 		out.close();
