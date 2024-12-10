@@ -246,7 +246,7 @@ namespace QuadricsIntersection
 
 		std::vector<Eigen::Vector3d>().swap(points);
 
-		for (double cur_t = t_lb_; cur_t < t_ub_ + t_step + SQI_EPS; cur_t += t_step) {
+		for (double cur_t = t_lb_ + SQI_EPS; cur_t < t_ub_; cur_t += t_step) {
 			std::vector<double> ss;
 			get_s(cur_t, ss);
 
@@ -254,6 +254,14 @@ namespace QuadricsIntersection
 				if (s >= s_lb_ && s <= s_ub_) {
 					points.push_back(C.get_point(s, cur_t));
 				}
+			}
+		}
+
+		std::vector<double> ss;
+		get_s(t_ub_ - SQI_EPS, ss);
+		for (double s : ss) {
+			if (s >= s_lb_ && s <= s_ub_) {
+				points.push_back(C.get_point(s, t_ub_ - SQI_EPS));
 			}
 		}
 	}

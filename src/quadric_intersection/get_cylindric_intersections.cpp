@@ -278,18 +278,29 @@ namespace QuadricsIntersection
 					t1 = L1_C2_intersect_points[0].t();
 					t2 = L2_C2_intersect_points[0].t();
 
-					// cut curves into 4 parts
-					ParameterizationCylindricCurve PC_C2_2;
-					PC_C2.separate_t(PC_C2_2, t1, t2);
-					ParameterizationCylindricCurve PC_C2_11;
-					PC_C2.separate_s(PC_C2_11);
-					ParameterizationCylindricCurve PC_C2_21;
-					PC_C2_2.separate_s(PC_C2_21);
+					if (t1 < t2) { // sort to let t1 > t2
+						double tmp_t = t1;
+						t1 = t2; t2 = tmp_t;
+					}
 
-					curves.push_back(PC_C2);
-					curves.push_back(PC_C2_2);
-					curves.push_back(PC_C2_11);
-					curves.push_back(PC_C2_21);
+					// cut curves into 4 (or more) parts
+					ParameterizationCylindricCurve PC_C2_1, PC_C2_2;
+					if (PC_C2.separate_t(PC_C2_1, t2) == 1) {
+						ParameterizationCylindricCurve PC_C2_1s;
+						PC_C2_1.separate_s(PC_C2_1s);
+
+						curves.push_back(PC_C2_1); curves.push_back(PC_C2_1s);
+					}
+					if (PC_C2.separate_t(PC_C2_2, t1) == 1) {
+						ParameterizationCylindricCurve PC_C2_2s;
+						PC_C2_2.separate_s(PC_C2_2s);
+
+						curves.push_back(PC_C2_2); curves.push_back(PC_C2_2s);
+					}
+					ParameterizationCylindricCurve PC_C2_s;
+					PC_C2.separate_s(PC_C2_s);
+
+					curves.push_back(PC_C2); curves.push_back(PC_C2_s);
 				}
 				else if (L1_status == 2 || L2_status == 2) { // two-point intersection + do not intersect: result 1 parameterization curve
 					std::vector<ParameterizationCylindricPoint>* intersection_points;
@@ -299,39 +310,63 @@ namespace QuadricsIntersection
 					double t1 = (*intersection_points)[0].t();
 					double t2 = (*intersection_points)[1].t();
 
-					if (t1 < t2) { // sort to let t1 > t2
+					if (t2 < t1) { // sort to let t1 < t2
 						double tmp_t = t1;
 						t1 = t2; t2 = tmp_t;
 					}
 
 					if (axes_dis > C1.r() + SQI_EPS) { // circle center angle < 180
-						if (t1 - t2 > 180) {
-							PC_C2.t_lb() = t1; PC_C2.t_ub() = t2 + 360;
+						if (t2 - t1 > 180) { // set to [t2, t1+360]
+							PC_C2.t_lb() = t2; PC_C2.t_ub() = t1 + 360;
 						}
-						else {
-							PC_C2.t_lb() = t2; PC_C2.t_ub() = t1;
+						else { // set to [t1, t2]
+							PC_C2.t_lb() = t1; PC_C2.t_ub() = t2;
 						}
 					}
 					else if (axes_dis < C1.r() - SQI_EPS) { // circle center angle > 180
-						if (t1 - t2 > 180) {
-							PC_C2.t_lb() = t2; PC_C2.t_ub() = t1;
+						if (t2 - t1 > 180) { // set to [t1, t2]
+							PC_C2.t_lb() = t1; PC_C2.t_ub() = t2;
 						}
-						else {
-							PC_C2.t_lb() = t1; PC_C2.t_ub() = t2 + 360;
+						else { // set to [t2, t1+360]
+							PC_C2.t_lb() = t2; PC_C2.t_ub() = t1 + 360;
 						}
 					}
-					double center_t = 0.5 * (PC_C2.t_lb() + PC_C2.t_ub());
 
 					// cut curves into 4 parts
-					ParameterizationCylindricCurve PC_C2_s, PC_C2_st, PC_C2_t;
-					PC_C2.separate_s(PC_C2_s);
-					PC_C2.separate_t(PC_C2_t, center_t);
-					PC_C2_s.separate_t(PC_C2_st, center_t);
+					ParameterizationCylindricCurve PC_C2_mid; // [lb, center]
+					PC_C2.separate_t(PC_C2_mid, 0.5 * (PC_C2.t_lb() + PC_C2.t_ub())); // PC_C2 [center, ub]
 
-					curves.push_back(PC_C2);
-					curves.push_back(PC_C2_s);
-					curves.push_back(PC_C2_st);
-					curves.push_back(PC_C2_t);
+					// all set to [0, 360]
+					if (PC_C2.t_lb() > 360) {
+						PC_C2.t_lb() -= 360; PC_C2.t_ub() -= 360;
+					}
+					else if (PC_C2.t_ub() > 360) { // cut to [lb, 360] and [0, ub - 360]
+						ParameterizationCylindricCurve PC_C2_1 = PC_C2;
+						PC_C2.t_ub() = 360;
+						PC_C2_1.t_lb() = 0; PC_C2_1.t_ub() -= 360;
+						curves.push_back(PC_C2_1);
+					}
+
+					if (PC_C2_mid.t_lb() > 360) {
+						PC_C2_mid.t_lb() -= 360; PC_C2_mid.t_ub() -= 360;
+					}
+					else if (PC_C2_mid.t_ub() > 360) { // cut to [lb, 360] and [0, ub - 360]
+						ParameterizationCylindricCurve PC_C2_mid_1 = PC_C2_mid;
+						PC_C2_mid.t_ub() = 360;
+						PC_C2_mid_1.t_lb() = 0; PC_C2_mid_1.t_ub() -= 360;
+						curves.push_back(PC_C2_mid_1);
+					}
+					curves.push_back(PC_C2_mid);
+					
+					// cut according to s
+					for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+						ParameterizationCylindricCurve PC_s;
+						curves[i].separate_s(PC_s);
+						curves.push_back(PC_s);
+					}
+					ParameterizationCylindricCurve PC_s;
+					PC_C2.separate_s(PC_s);
+					curves.push_back(PC_C2); curves.push_back(PC_s);
 				}
 				else {
 					SQI_VERBOSE_ONLY_COUT("may error?");
@@ -425,14 +460,46 @@ namespace QuadricsIntersection
 			double t1 = t - rot_angle;
 			double t2 = t + rot_angle;
 
-			ParameterizationCylindricCurve PC_tmp;
-			PC.separate_t(PC_tmp, t1, t2);
-
-			ParameterizationCylindricCurve PC2;
-			PC.separate_s(PC2);
-
-			curves.push_back(PC);
-			curves.push_back(PC2);
+			if (t1 < 0) { // divide to [0, t2] and [t1 + 360, 360]
+				ParameterizationCylindricCurve PC_tmp1, PC_tmp2;
+				if (PC.separate_t(PC_tmp1, t2) == 1) {
+					ParameterizationCylindricCurve PC_tmp1_s;
+					PC_tmp1.separate_s(PC_tmp1_s);
+					curves.push_back(PC_tmp1); curves.push_back(PC_tmp1_s);
+				}
+				if (PC.separate_t(PC_tmp2, t1 + 360) == 1) {
+					ParameterizationCylindricCurve PC_s;
+					PC.separate_s(PC_s);
+					curves.push_back(PC); curves.push_back(PC_s);
+				}
+			}
+			else if (t2 > 360) { // divide to [t1, 360] and [0, t2-360]
+				ParameterizationCylindricCurve PC_tmp1, PC_tmp2;
+				if (PC.separate_t(PC_tmp2, t2 - 360) == 1) {
+					ParameterizationCylindricCurve PC_tmp2_s;
+					PC_tmp2.separate_s(PC_tmp2_s);
+					curves.push_back(PC_tmp2); curves.push_back(PC_tmp2_s);
+				}
+				if (PC.separate_t(PC_tmp1, t1) == 1) {
+					ParameterizationCylindricCurve PC_s;
+					PC.separate_s(PC_s);
+					curves.push_back(PC); curves.push_back(PC_s);
+				}
+			}
+			else { // divide to [t1, t2]
+				ParameterizationCylindricCurve PC_tmp1, PC_tmp2;
+				PC.separate_t(PC_tmp1, t1); // if failed, is also ok
+				if (PC.separate_t(PC_tmp2, t2) == 1) {
+					ParameterizationCylindricCurve PC_tmp2_s;
+					PC_tmp2.separate_s(PC_tmp2_s);
+					curves.push_back(PC_tmp2); curves.push_back(PC_tmp2_s);
+				}
+				else {
+					ParameterizationCylindricCurve PC_s;
+					PC.separate_s(PC_s);
+					curves.push_back(PC); curves.push_back(PC_s);
+				}
+			}
 		}
 
 		return points.size() + curves.size();
