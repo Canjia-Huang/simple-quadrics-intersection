@@ -26,10 +26,11 @@ namespace QuadricsIntersection
 
 			double delta = b * b - 4 * a * c;
 			if (delta < -SQI_EPS) {
-				SQI_VERBOSE_ONLY_COUT("not intersect");
+				//  SQI_VERBOSE_ONLY_COUT("not intersect");
+				// do nothing
 			}
 			else if (delta < SQI_EPS) {
-				SQI_VERBOSE_ONLY_COUT("tangent");
+				// SQI_VERBOSE_ONLY_COUT("tangent");
 
 				double w = -b / (2 * a);
 
@@ -38,7 +39,7 @@ namespace QuadricsIntersection
 				points.push_back(ParameterizationCylindricPoint(s, t));
 			}
 			else {
-				SQI_VERBOSE_ONLY_COUT("two-point intersection");
+				// SQI_VERBOSE_ONLY_COUT("two-point intersection");
 
 				double sqrt_delta = std::sqrt(delta);
 				double w1 = (-b + sqrt_delta) / (2 * a);
@@ -69,7 +70,7 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCylindricCurve>().swap(curves);
 		Eigen::Vector3d P1_cor_to_C1_cor = C1.cor() - P1.cor();
 
-		if (P1.nor().dot(C1.nor()) < SQI_EPS) { // plane is parallel to cylinder	
+		if (std::abs(P1.nor().dot(C1.nor())) < SQI_EPS) { // plane is parallel to cylinder	
 			double P1_cor_to_C1_cor_dot_P1_nor = P1_cor_to_C1_cor.dot(P1.nor());
 			double P1_cor_to_C1_dis = std::abs(P1_cor_to_C1_cor_dot_P1_nor);
 
@@ -151,7 +152,7 @@ namespace QuadricsIntersection
 
 		double C1_nor_dot_C2_nor = C1.nor().dot(C2.nor());
 
-		if (std::abs(std::abs(C1_nor_dot_C2_nor) - 1) < SQI_EPS) { // 2 axes are parallel
+		if (1 - std::abs(C1_nor_dot_C2_nor) < SQI_EPS) { // 2 axes are parallel
 			SQI_VERBOSE_ONLY_COUT("cylinders axes are parallel");
 
 			// check whether intersect
@@ -503,5 +504,87 @@ namespace QuadricsIntersection
 		}
 
 		return points.size() + curves.size();
+	}
+
+	int get_intersections(
+		Cylinder& C1,
+		std::vector<Plane>& planes,
+		std::vector<Cylinder>& cylinders,
+		std::vector<Sphere>& spheres,
+		std::vector<ParameterizationCylindricPoint>& res_points,
+		std::vector<ParameterizationCylindricLine>& res_lines,
+		std::vector<ParameterizationCylindricCurve>& res_curves
+	) {
+		SQI_VERBOSE_ONLY_COUT("");
+
+		// init
+		std::vector<ParameterizationCylindricPoint>().swap(res_points);
+		std::vector<ParameterizationCylindricLine>().swap(res_lines);
+		std::vector<ParameterizationCylindricCurve>().swap(res_curves);
+
+		// get the intersections between cylinder C1 and other primitives
+		std::vector<std::vector<ParameterizationCylindricPoint>> res_points_array;
+		std::vector<std::vector<ParameterizationCylindricLine>> res_lines_array;
+		std::vector<std::vector<ParameterizationCylindricCurve>> res_curves_array;
+		for (int i = 0, i_end = planes.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricLine> lines;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(planes[i], C1, lines, curves);
+
+			res_lines_array.push_back(lines);
+			res_curves_array.push_back(curves);
+		}
+		// SQI_VERBOSE_ONLY_TEST("process cylinders");
+		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint> points;
+			std::vector<ParameterizationCylindricLine> lines;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(cylinders[i], C1, points, lines, curves);
+
+			res_points_array.push_back(points);
+			res_lines_array.push_back(lines);
+			res_curves_array.push_back(curves);
+		}
+		// SQI_VERBOSE_ONLY_TEST("process spheres");
+		for (int i = 0, i_end = spheres.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint> points;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(spheres[i], C1, points, curves);
+
+			res_points_array.push_back(points);
+			res_curves_array.push_back(curves);
+		}
+
+		// process the intersections' intersections
+		for (int i = 0, i_end = res_points_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricPoint>* points = &(res_points_array[i]);
+
+			res_points.insert(res_points.end(), points->begin(), points->end());
+		}
+		SQI_VERBOSE_ONLY_TEST("process cylindric curves");
+		for (int i = 0, i_end = res_curves_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricCurve>* curves = &(res_curves_array[i]);
+
+			if (res_curves.size() > 0) {
+				std::cout << get_intersections(*curves, res_curves) << std::endl;
+			}
+
+			res_curves.insert(res_curves.end(), curves->begin(), curves->end());
+		}
+		SQI_VERBOSE_ONLY_TEST("process cylindric line");
+		for (int i = 0, i_end = res_lines_array.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricLine>* lines = &(res_lines_array[i]);
+
+			if (res_curves.size() > 0) {
+				get_intersections(*lines, res_curves);
+			}
+
+			res_lines.insert(res_lines.end(), lines->begin(), lines->end());
+		}
+
+		return res_points.size() + res_lines.size() + res_curves.size();
 	}
 }

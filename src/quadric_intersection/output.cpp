@@ -172,12 +172,12 @@ namespace QuadricsIntersection
 		points.reserve(2);
 		lines.reserve(1);
 
-		points.push_back(cor_ + 0.5 * l * nor_);
-		points.push_back(cor_ - 0.5 * l * nor_);
+		points.push_back(get_point(std::min(0.5 * l, s_ub_)));
+		points.push_back(get_point(std::max(-0.5 * l, s_lb_)));
 		lines.push_back(Eigen::Vector2i(0, 1));
 	}
 
-	void Line::output_model(
+	void Line::output_points(
 		std::vector<Eigen::Vector3d>& points,
 		double l, int seg
 	) {
@@ -187,9 +187,10 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector3d>().swap(points);
 
 		double l_step = l / seg;
-		for (double cur_l = -0.5 * l, cur_l_end = 0.5 * l + SQI_EPS; cur_l < cur_l_end; cur_l += l_step) {
-			points.push_back(cor_ + cur_l * nor_);
+		for (double cur_l = std::max(-0.5 * l, s_lb_), cur_l_end = std::min(0.5 * l, s_ub_); cur_l < cur_l_end; cur_l += l_step) {
+			points.push_back(get_point(cur_l));
 		}
+		points.push_back(get_point(std::min(0.5 * l, s_ub_)));
 	}
 
 	void ParameterizationCircle::output_points(
@@ -315,6 +316,39 @@ namespace QuadricsIntersection
 		out.close();
 	}
 
+	void write_planar_result_points(
+		std::string output_file_path,
+		std::vector<Point>& points,
+		std::vector<Line>& lines
+	) {
+		// SQI_VERBOSE_ONLY_COUT("");
+
+		int primitive_num = points.size() + lines.size();
+		if (rand_color_bar.size() < primitive_num) {
+			create_rand_color_bar(primitive_num);
+		}
+
+		std::ofstream out(output_file_path);
+		int color_num = 0;
+
+		for (Point P : points) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
+
+			out << "v" << " " << P.cor().transpose() << " " << color.transpose() << std::endl;
+		}
+
+		for (Line L : lines) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
+
+			std::vector<Eigen::Vector3d> output_points;
+			L.output_points(output_points);
+
+			for (Eigen::Vector3d p : output_points) {
+				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
+			}
+		}
+	}
+
 	void write_cylinder_result_points(
 		std::string output_file_path,
 		Cylinder& C,
@@ -360,6 +394,16 @@ namespace QuadricsIntersection
 			}
 		}
 		out.close();
+	}
+
+	void write_cylinder_result_points(
+		std::string output_file_path,
+		Cylinder& C,
+		std::vector<ParameterizationCylindricLine>& lines
+	) {
+		std::vector<ParameterizationCylindricPoint> points;
+		std::vector<ParameterizationCylindricCurve> curves;
+		write_cylinder_result_points(output_file_path, C, points, lines, curves);
 	}
 
 	void write_cylinder_result_points(
