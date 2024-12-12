@@ -352,8 +352,8 @@ namespace QuadricsIntersection
 	void write_cylinder_result_points(
 		std::string output_file_path,
 		Cylinder& C,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricLine>& lines,
+		std::vector<Point>& points,
+		std::vector<Line>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
 		// SQI_VERBOSE_ONLY_COUT("");
@@ -366,17 +366,17 @@ namespace QuadricsIntersection
 		std::ofstream out(output_file_path);
 		int color_num = 0;
 
-		for (ParameterizationCylindricPoint P : points) {
+		for (Point P : points) {
 			Eigen::Vector3d color = rand_color_bar[color_num++];
 
-			out << "v" << " " << P.get_point(C).transpose() << " " << color.transpose() << std::endl;
+			out << "v" << " " << P.cor().transpose() << " " << color.transpose() << std::endl;
 		}
 
-		for (ParameterizationCylindricLine L : lines) {
+		for (Line L : lines) {
 			Eigen::Vector3d color = rand_color_bar[color_num++];
 
 			std::vector<Eigen::Vector3d> output_points;
-			L.output_points(C, output_points);
+			L.output_points(output_points);
 
 			for (Eigen::Vector3d p : output_points) {
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
@@ -399,9 +399,9 @@ namespace QuadricsIntersection
 	void write_cylinder_result_points(
 		std::string output_file_path,
 		Cylinder& C,
-		std::vector<ParameterizationCylindricLine>& lines
+		std::vector<Line>& lines
 	) {
-		std::vector<ParameterizationCylindricPoint> points;
+		std::vector<Point> points;
 		std::vector<ParameterizationCylindricCurve> curves;
 		write_cylinder_result_points(output_file_path, C, points, lines, curves);
 	}
@@ -411,8 +411,8 @@ namespace QuadricsIntersection
 		Cylinder& C,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
-		std::vector<ParameterizationCylindricPoint> points;
-		std::vector<ParameterizationCylindricLine> lines;
+		std::vector<Point> points;
+		std::vector<Line> lines;
 		write_cylinder_result_points(output_file_path, C, points, lines, curves);
 	}
 
