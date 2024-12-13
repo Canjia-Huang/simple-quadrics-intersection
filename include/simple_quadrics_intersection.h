@@ -131,7 +131,7 @@ namespace QuadricsIntersection {
 	};
 
 	/* Parameterization cylinder
-	* C(s, t) = cor + r * (cos(t) * u + sin(t) * v) + s * nor 
+	* C(s, t) = cor + r * (cos(t) * u + sin(t) * v) + s * nor
 	* t = [0, 360], s = [-infty, +infty] */
 	class Cylinder {
 	public:
@@ -139,7 +139,7 @@ namespace QuadricsIntersection {
 		~Cylinder() {};
 		Cylinder(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
 			nor.normalize();
-			cor_ = cor; nor_ = nor; 
+			cor_ = cor; nor_ = nor;
 			r_ = std::abs(r);
 			u_ = get_perpendicular_normal(nor);
 			v_ = nor.cross(u_).normalized();
@@ -176,7 +176,7 @@ namespace QuadricsIntersection {
 	};
 
 	/* Parameterization sphere
-	* S(s, t) = cor + r * (cos(t) * u + sin(t) * v) * sin(s) + r * cos(s) * nor 
+	* S(s, t) = cor + r * (cos(t) * u + sin(t) * v) * sin(s) + r * cos(s) * nor
 	* t = [0, 360], s = [0, 180] */
 	class Sphere {
 	public:
@@ -328,7 +328,7 @@ namespace QuadricsIntersection {
 			this->t_lb_ = t; C.t_ub_ = t;
 			return 1;
 		}
-		/* separate the circle according to some t 
+		/* separate the circle according to some t
 		/note: ts may not need to be sorted.
 		*/
 		void separate_t(std::vector<ParameterizationCircle>& Cs, std::vector<double>& ts) {
@@ -646,8 +646,8 @@ namespace QuadricsIntersection {
 	*/
 	int get_intersections(
 		Cylinder& C1, Cylinder& C2,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricLine>& lines,
+		std::vector<Point>& points,
+		std::vector<Line>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
 	// delete later
@@ -689,6 +689,12 @@ namespace QuadricsIntersection {
 	*/
 	int get_intersections(
 		Cylinder& C1, Sphere& S1,
+		std::vector<Point>& points,
+		std::vector<ParameterizationCylindricCurve>& curves);
+
+	// delete later
+	int get_intersections(
+		Cylinder& C1, Sphere& S1,
 		std::vector<ParameterizationCylindricPoint>& points,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
@@ -708,8 +714,16 @@ namespace QuadricsIntersection {
 		std::vector<Line>& sub_L1s);
 
 	int get_intersections(
-		std::vector<Point>& Ps,
-		std::vector<Line>& Ls);
+		std::vector<Point>& P1s,
+		std::vector<Line>& L1s);
+
+	int get_intersections(
+		Point& P1, ParameterizationCircle& c1,
+		std::vector<ParameterizationCircle>& sub_c1s);
+
+	int get_intersections(
+		std::vector<Point>& P1s,
+		std::vector<ParameterizationCircle>& c1s);
 
 	int get_intersections(
 		Point& P1, ParameterizationCylindricCurve& PC1, Cylinder& C1,
@@ -800,6 +814,11 @@ namespace QuadricsIntersection {
 		std::vector<ParameterizationCylindricCurve>& PC2s,
 		double t_step = 1.);
 
+	int get_intersections(
+		std::vector<ParameterizationCylindricCurve>& PC1s, Cylinder& C1,
+		std::vector<ParameterizationCylindricCurve>& PC2s, Cylinder& C2,
+		double t_step = 1.);
+
 	/*	Get the results of the intersection between a parameterization Circle c1 and a parameterization Curve PC1 (on the Cylinder C1).
 	*	This function will involve clipping the original input, and outputting other clipped circles and curves through std::vector.
 	/note: assume that the circle and the curve are on a same sphere
@@ -866,17 +885,12 @@ namespace QuadricsIntersection {
 	*/
 	int get_intersections(
 		Sphere& S1,
-		std::vector<Plane>& planes,
-		std::vector<Cylinder>& cylinders,
-		std::vector<Sphere>& spheres,
-		std::vector<Point>& res_points,
-		std::vector<ParameterizationCircle>& res_circles,
-		std::vector<std::vector<ParameterizationCylindricPoint>>& res_c_points,
-		std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves);
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
+		std::vector<Point>& res_points, std::vector<ParameterizationCircle>& res_circles, std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves);
 
 	// -------------------------------------------------------------------------output for debug-------------------------------------------------------------------------
 
-	/* Output the primitives as the meshes and export to an OBJ file. 
+	/* Output the primitives as the meshes and export to an OBJ file.
 	*/
 	void write_result_mesh(
 		std::string output_file_path,
@@ -892,7 +906,7 @@ namespace QuadricsIntersection {
 		std::vector<Point>& points,
 		std::vector<Line>& lines);
 
-	/* Output the intersection primitives as points and export to an OBJ file. 
+	/* Output the intersection primitives as points and export to an OBJ file.
 	/note: using Cylinder C as the parameterization surface.
 	*/
 	void write_cylinder_result_points(
@@ -909,6 +923,11 @@ namespace QuadricsIntersection {
 		std::string output_file_path,
 		Cylinder& C,
 		std::vector<ParameterizationCylindricCurve>& curves);
+
+	void write_cylinders_result_points(
+		std::string output_file_path,
+		std::vector<std::vector<ParameterizationCylindricCurve>>& c_curves, std::vector<Cylinder>& cylinders);
+
 
 	/* Output the intersection primitives as points and export to an OBJ file.
 	*/

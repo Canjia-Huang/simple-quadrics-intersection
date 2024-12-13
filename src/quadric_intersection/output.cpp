@@ -416,6 +416,39 @@ namespace QuadricsIntersection
 		write_cylinder_result_points(output_file_path, C, points, lines, curves);
 	}
 
+	void write_cylinders_result_points(
+		std::string output_file_path,
+		std::vector<std::vector<ParameterizationCylindricCurve>>& c_curves, std::vector<Cylinder>& cylinders
+	) {
+		// SQI_VERBOSE_ONLY_TITLE("");
+
+		int primitive_num = 0;
+		for (int i = 0, i_end = c_curves.size(); i < i_end; ++i) primitive_num += c_curves[i].size();
+		if (rand_color_bar.size() < primitive_num) {
+			create_rand_color_bar(primitive_num);
+		}
+
+		std::ofstream out(output_file_path);
+		int color_num = 0;
+
+		for (int i = 0, i_end = c_curves.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricCurve>* curves = &c_curves[i];
+
+			for (ParameterizationCylindricCurve PC : *curves) {
+				Eigen::Vector3d color = rand_color_bar[color_num++];
+
+				std::vector<Eigen::Vector3d> output_points;
+				PC.output_points(cylinders[i], output_points);
+
+				for (Eigen::Vector3d p : output_points) {
+					out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
+				}
+			}
+		}
+
+		out.close();
+	}
+
 	void write_sphere_result_points(
 		std::string output_file_path,
 		std::vector<Point>& points,
@@ -446,6 +479,7 @@ namespace QuadricsIntersection
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 		}
+
 		out.close();
 	}
 }

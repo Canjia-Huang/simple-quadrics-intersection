@@ -1,5 +1,9 @@
 #include "simple_quadrics_intersection.h"
 
+// dont show the VERBOSE info
+#define SQI_VERBOSE_ONLY_TITLE(x)
+#define SQI_VERBOSE_ONLY_COUT(x)
+
 namespace QuadricsIntersection 
 {
 	int get_intersections(
@@ -526,17 +530,22 @@ namespace QuadricsIntersection
 		return 0;
 	}
 
+
+
+
 	int get_intersections(
 		Cylinder& C1,
 		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
 		std::vector<Point>& res_points, std::vector<Line>& res_lines, std::vector<ParameterizationCylindricCurve>& res_curves
 	) {
-		SQI_VERBOSE_ONLY_COUT("");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Cylinder and other primitives");
 
 		// init
 		std::vector<Point>().swap(res_points);
 		std::vector<Line>().swap(res_lines);
 		std::vector<ParameterizationCylindricCurve>().swap(res_curves);
+
+		// process the primitives' intersections
 
 		std::vector<ParameterizationCylindricCurve> generated_curves;
 
@@ -547,8 +556,8 @@ namespace QuadricsIntersection
 
 			get_intersections(planes[i], C1, lines, curves);
 
-			for (int i = 0, i_end = lines.size(); i < i_end; ++i) res_lines.push_back(lines[i]);
-			for (int i = 0, i_end = curves.size(); i < i_end; ++i) generated_curves.push_back(curves[i]);
+			for (int ii = 0, ii_end = lines.size(); ii < ii_end; ++ii) res_lines.push_back(lines[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
 		}
 		// with cylinders
 		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
@@ -558,9 +567,9 @@ namespace QuadricsIntersection
 
 			get_intersections(cylinders[i], C1, points, lines, curves);
 
-			for (int i = 0, i_end = points.size(); i < i_end; ++i) res_points.push_back(points[i]);
-			for (int i = 0, i_end = lines.size(); i < i_end; ++i) res_lines.push_back(lines[i]);
-			for (int i = 0, i_end = curves.size(); i < i_end; ++i) generated_curves.push_back(curves[i]);
+			for (int ii = 0, ii_end = points.size(); ii < ii_end; ++ii) res_points.push_back(points[ii]);
+			for (int ii = 0, ii_end = lines.size(); ii < ii_end; ++ii) res_lines.push_back(lines[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
 		}
 		// with spheres
 		for (int i = 0, i_end = spheres.size(); i < i_end; ++i) {
@@ -569,9 +578,11 @@ namespace QuadricsIntersection
 
 			get_intersections(spheres[i], C1, points, curves);
 
-			for (int i = 0, i_end = points.size(); i < i_end; ++i) res_points.push_back(points[i]);
-			for (int i = 0, i_end = curves.size(); i < i_end; ++i) generated_curves.push_back(curves[i]);
+			for (int ii = 0, ii_end = points.size(); ii < ii_end; ++ii) res_points.push_back(points[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
 		}
+
+		// process the intersections' intersections
 
 		// curves and curves
 		for (int i = 0, i_end = generated_curves.size(); i < i_end; ++i) {
@@ -580,7 +591,7 @@ namespace QuadricsIntersection
 
 			get_intersections(sub_curves, res_curves);
 
-			for (int i = 0, i_end = sub_curves.size(); i < i_end; ++i) res_curves.push_back(sub_curves[i]);
+			for (int ii = 0, ii_end = sub_curves.size(); ii < ii_end; ++ii) res_curves.push_back(sub_curves[ii]);
 		}
 
 		// lines and curves
