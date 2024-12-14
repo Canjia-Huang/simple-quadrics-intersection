@@ -8,6 +8,7 @@ namespace QuadricsIntersection
 	std::vector<Eigen::Vector3d> rand_color_bar;
 
 	void create_rand_color_bar(int num) {
+		srand(int(time(NULL)));
 		rand_color_bar.reserve(num);
 		for (int i = 0; i < num; ++i) {
 			rand_color_bar.push_back(
@@ -181,8 +182,6 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector3d>& points,
 		double l, int seg
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 

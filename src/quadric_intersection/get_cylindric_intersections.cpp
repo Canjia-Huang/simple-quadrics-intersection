@@ -547,7 +547,7 @@ namespace QuadricsIntersection
 
 		// process the primitives' intersections
 
-		std::vector<ParameterizationCylindricCurve> generated_curves;
+		std::vector<ParameterizationCylindricCurve> res_c_curves;
 
 		// with planes
 		for (int i = 0, i_end = planes.size(); i < i_end; ++i) {
@@ -557,7 +557,7 @@ namespace QuadricsIntersection
 			get_intersections(planes[i], C1, lines, curves);
 
 			for (int ii = 0, ii_end = lines.size(); ii < ii_end; ++ii) res_lines.push_back(lines[ii]);
-			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) res_c_curves.push_back(curves[ii]);
 		}
 		// with cylinders
 		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
@@ -569,7 +569,7 @@ namespace QuadricsIntersection
 
 			for (int ii = 0, ii_end = points.size(); ii < ii_end; ++ii) res_points.push_back(points[ii]);
 			for (int ii = 0, ii_end = lines.size(); ii < ii_end; ++ii) res_lines.push_back(lines[ii]);
-			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) res_c_curves.push_back(curves[ii]);
 		}
 		// with spheres
 		for (int i = 0, i_end = spheres.size(); i < i_end; ++i) {
@@ -579,15 +579,15 @@ namespace QuadricsIntersection
 			get_intersections(spheres[i], C1, points, curves);
 
 			for (int ii = 0, ii_end = points.size(); ii < ii_end; ++ii) res_points.push_back(points[ii]);
-			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) generated_curves.push_back(curves[ii]);
+			for (int ii = 0, ii_end = curves.size(); ii < ii_end; ++ii) res_c_curves.push_back(curves[ii]);
 		}
 
 		// process the intersections' intersections
 
 		// curves and curves
-		for (int i = 0, i_end = generated_curves.size(); i < i_end; ++i) {
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
 			std::vector<ParameterizationCylindricCurve> sub_curves;
-			sub_curves.push_back(generated_curves[i]);
+			sub_curves.push_back(res_c_curves[i]);
 
 			get_intersections(sub_curves, res_curves);
 

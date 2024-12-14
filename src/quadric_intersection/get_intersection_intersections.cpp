@@ -2,12 +2,12 @@
 #include <unordered_set>
 
 // dont show the VERBOSE info
-#define SQI_VERBOSE_ONLY_TITLE(x)
-#define SQI_VERBOSE_ONLY_COUT(x)
+//#define SQI_VERBOSE_ONLY_TITLE(x)
+//#define SQI_VERBOSE_ONLY_COUT(x)
 
 namespace QuadricsIntersection
 {
-	// Point and Point (dont need to)
+	// Point and Point (do not need to do anything)
 
 	// Point and Line
 
@@ -583,87 +583,126 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCircle>& sub_c1s,
 		std::vector<ParameterizationCircle>& sub_c2s
 	) {
-		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Circles");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Circle and a Circle");
 
 		// init
 		std::vector<ParameterizationCircle>().swap(sub_c1s);
 		std::vector<ParameterizationCircle>().swap(sub_c2s);
 
-		if (1 - std::abs(c1.nor().dot(c2.nor())) < SQI_EPS) { // two circle's nors are parallel: result nothing
-			SQI_VERBOSE_ONLY_COUT("parallel");
-			return 0;
-		}
+		if (1 - std::abs(c1.nor().dot(c2.nor())) < SQI_EPS) { // two circle's nors are parallel
+			SQI_VERBOSE_ONLY_COUT("circle -- parallel -- circle");
+			
+			Eigen::Vector3d c1_cor_to_c2_cor = c2.cor() - c1.cor();
+			double R = c1_cor_to_c2_cor.norm();
+			if (1 - std::abs((c1_cor_to_c2_cor / R).dot(c1.nor())) < SQI_EPS) { // two circle are at different planes: result nothing
+				SQI_VERBOSE_ONLY_COUT("circle's plane -- different -- circle's plane");
+				return 0;
+			}
+			else { // find the intersections between two co-facet circles
+				Eigen::Vector3d c1_cor_mid_c2_cor = 0.5 * (c1.cor() + c2.cor());
+				Eigen::Vector3d au = c1_cor_to_c2_cor / R;
+				Eigen::Vector3d bv = c1.nor().cross(au).normalized();
+				double sq_c1_r = c1.r() * c1.r();
+				double sq_c2_r = c2.r() * c2.r();
+				double sq_c1_r_sq_c2_r = sq_c1_r - sq_c2_r;
+				double sq_R = R * R;
 
-		Plane P1(c1.cor(), c1.nor());
-		Plane P2(c2.cor(), c2.nor());
-		Line intersect_L;
-		get_intersections(P1, P2, intersect_L);
+				double a = 0.5 * sq_c1_r_sq_c2_r / R;
+				double b = std::sqrt(0.5 * (sq_c1_r + sq_c2_r) - 0.25 * (sq_c1_r_sq_c2_r * sq_c1_r_sq_c2_r) / sq_R - 0.25 * sq_R);
 
-		// find intersections on Circle c1, solve a * t^2 + b * t + c = 0
-		Eigen::Vector3d c1_cor_to_L_cor = intersect_L.cor() - c1.cor();
-		double a = intersect_L.nor().squaredNorm();
-		double b = 2 * c1_cor_to_L_cor.dot(intersect_L.nor());
-		double c = c1_cor_to_L_cor.squaredNorm() - c1.r() * c1.r();
-		double delta = b * b - 4 * a * c;
-		if (delta < -SQI_EPS) { // not intersect
-			SQI_VERBOSE_ONLY_COUT("not intersect");
-			return 0;
-		}
-		else if (delta < SQI_EPS) { // tangent: 1 point
-			SQI_VERBOSE_ONLY_COUT("tangent");
+				Eigen::Vector3d intersect_point1 = c1_cor_mid_c2_cor + a * au + b * bv;
+				Eigen::Vector3d intersect_point2 = c1_cor_mid_c2_cor + a * au - b * bv;
 
-			double intersect_t = -b / (2 * a);
-			Eigen::Vector3d intersect_point = intersect_L.cor() + intersect_t * intersect_L.nor();
+				double t11, t12, t21, t22;
+				t11 = c1.get_t(intersect_point1); t12 = c2.get_t(intersect_point1);
+				t21 = c1.get_t(intersect_point2); t22 = c2.get_t(intersect_point2);
 
-			if (std::abs((intersect_point - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
-				double c1_t = c1.get_t(intersect_point);
-				if (c1.is_t_valid(c1_t) == false) return 0;
+				std::vector<double> c1_cut_ts, c2_cut_ts;
+				if (c1.is_t_valid(t11) && c2.is_t_valid(t12)) { // cut in point 1
+					c1_cut_ts.push_back(t11); c2_cut_ts.push_back(t12);
+				}
+				if (c1.is_t_valid(t21) && c2.is_t_valid(t22)) { // cut in point 2
+					c1_cut_ts.push_back(t21); c2_cut_ts.push_back(t22);
+				}
 
-				double c2_t = c2.get_t(intersect_point);
-				if (c2.is_t_valid(c2_t) == false) return 0;
-
-				// cut the circles
-				ParameterizationCircle sub_c1, sub_c2;
-				c1.separate_t(sub_c1, c1_t);
-				c2.separate_t(sub_c2, c2_t);
-				sub_c1s.push_back(sub_c1);
-				sub_c2s.push_back(sub_c2);
+				c1.separate_t(sub_c1s, c1_cut_ts);
+				c2.separate_t(sub_c2s, c2_cut_ts);
 			}
 		}
-		else { // intersect: 2 point
-			SQI_VERBOSE_ONLY_COUT("intersect");
+		else { // two circle's nors are not parallel
+			SQI_VERBOSE_ONLY_COUT("circle -- not parallel -- circle");
 
-			double sqrt_delta = std::sqrt(delta);
-			double intersect_t1 = (-b + sqrt_delta) / (2 * a);
-			double intersect_t2 = (-b - sqrt_delta) / (2 * a);
-			Eigen::Vector3d intersect_point1 = intersect_L.cor() + intersect_t1 * intersect_L.nor();
-			Eigen::Vector3d intersect_point2 = intersect_L.cor() + intersect_t2 * intersect_L.nor();
+			Plane P1(c1.cor(), c1.nor());
+			Plane P2(c2.cor(), c2.nor());
+			Line intersect_L;
+			get_intersections(P1, P2, intersect_L);
 
-			std::vector<double> cutting_c1ts;
-			std::vector<double> cutting_c2ts;
+			// find intersections on Circle c1, solve a * t^2 + b * t + c = 0
+			Eigen::Vector3d c1_cor_to_L_cor = intersect_L.cor() - c1.cor();
+			double a = intersect_L.nor().squaredNorm();
+			double b = 2 * c1_cor_to_L_cor.dot(intersect_L.nor());
+			double c = c1_cor_to_L_cor.squaredNorm() - c1.r() * c1.r();
+			double delta = b * b - 4 * a * c;
+			if (delta < -SQI_EPS) { // not intersect
+				SQI_VERBOSE_ONLY_COUT("not intersect");
+				return 0;
+			}
+			else if (delta < SQI_EPS) { // tangent: 1 point
+				SQI_VERBOSE_ONLY_COUT("tangent");
 
-			if (std::abs((intersect_point1 - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
-				double c1_t = c1.get_t(intersect_point1);
-				double c2_t = c2.get_t(intersect_point1);
-				if (c1.is_t_valid(c1_t) == true && c2.is_t_valid(c2_t) == true) {
-					cutting_c1ts.push_back(c1_t);
-					cutting_c2ts.push_back(c2_t);
+				double intersect_t = -b / (2 * a);
+				Eigen::Vector3d intersect_point = intersect_L.cor() + intersect_t * intersect_L.nor();
+
+				if (std::abs((intersect_point - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
+					double c1_t = c1.get_t(intersect_point);
+					if (c1.is_t_valid(c1_t) == false) return 0;
+
+					double c2_t = c2.get_t(intersect_point);
+					if (c2.is_t_valid(c2_t) == false) return 0;
+
+					// cut the circles
+					ParameterizationCircle sub_c1, sub_c2;
+					c1.separate_t(sub_c1, c1_t);
+					c2.separate_t(sub_c2, c2_t);
+					sub_c1s.push_back(sub_c1);
+					sub_c2s.push_back(sub_c2);
 				}
 			}
+			else { // intersect: 2 point
+				SQI_VERBOSE_ONLY_COUT("intersect");
 
-			if (std::abs((intersect_point2 - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
-				double c1_t = c1.get_t(intersect_point2);
-				double c2_t = c2.get_t(intersect_point2);
+				double sqrt_delta = std::sqrt(delta);
+				double intersect_t1 = (-b + sqrt_delta) / (2 * a);
+				double intersect_t2 = (-b - sqrt_delta) / (2 * a);
+				Eigen::Vector3d intersect_point1 = intersect_L.cor() + intersect_t1 * intersect_L.nor();
+				Eigen::Vector3d intersect_point2 = intersect_L.cor() + intersect_t2 * intersect_L.nor();
 
-				if (c1.is_t_valid(c1_t) == true && c2.is_t_valid(c2_t) == true) {
-					cutting_c1ts.push_back(c1_t);
-					cutting_c2ts.push_back(c2_t);
+				std::vector<double> cutting_c1ts;
+				std::vector<double> cutting_c2ts;
+
+				if (std::abs((intersect_point1 - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
+					double c1_t = c1.get_t(intersect_point1);
+					double c2_t = c2.get_t(intersect_point1);
+					if (c1.is_t_valid(c1_t) == true && c2.is_t_valid(c2_t) == true) {
+						cutting_c1ts.push_back(c1_t);
+						cutting_c2ts.push_back(c2_t);
+					}
 				}
-			}
 
-			// cut!
-			c1.separate_t(sub_c1s, cutting_c1ts);
-			c2.separate_t(sub_c2s, cutting_c2ts);
+				if (std::abs((intersect_point2 - c2.cor()).squaredNorm() - c2.r() * c2.r()) < SQI_EPS) { // intersect point is on c2
+					double c1_t = c1.get_t(intersect_point2);
+					double c2_t = c2.get_t(intersect_point2);
+
+					if (c1.is_t_valid(c1_t) == true && c2.is_t_valid(c2_t) == true) {
+						cutting_c1ts.push_back(c1_t);
+						cutting_c2ts.push_back(c2_t);
+					}
+				}
+
+				// cut!
+				c1.separate_t(sub_c1s, cutting_c1ts);
+				c2.separate_t(sub_c2s, cutting_c2ts);
+			}
 		}
 
 		return sub_c1s.size() + sub_c2s.size();
@@ -718,106 +757,78 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCircle>().swap(sub_c1s);
 		std::vector<ParameterizationCylindricCurve>().swap(sub_PC1s);
 
-		Plane P1(c1.cor(), c1.nor()); // proxy plane that is co-faceted with the circle
+		double move_dis = std::sqrt(C1.r() * C1.r() - c1.r() * c1.r());
+		Eigen::Vector3d S1_cor = c1.cor() + move_dis * c1.nor();
 
-		std::vector<Line> lines;
+		Sphere S1(S1_cor, c1.nor(), C1.r()); // proxy sphere that contain the circle
+
+		std::vector<Point> points;
 		std::vector<ParameterizationCylindricCurve> curves;
-		get_intersections(P1, C1, lines, curves);
+		get_intersections(S1, C1, points, curves);
 
-		if (lines.size() > 0) { // circle is parallel to cylinder's axis
-			SQI_VERBOSE_ONLY_COUT("parallel to cylinder's axis");
+		if (points.size() == 1) { // tangent
+			if (c1.is_on(points[0].cor())) {
+				double ct = c1.get_t(points[0].cor());
 
-			std::vector<ParameterizationCylindricCurve> tmp_PC1s = { PC1 };
-			get_intersections(lines, tmp_PC1s, C1);
-			if (tmp_PC1s.size() > 1) {
-				std::vector<Eigen::Vector3d> intersect_points;
-				std::vector<double> intersect_cts;
-				std::vector<double> intersect_Cts;
+				if (c1.is_t_valid(ct)) {
+					double Ct, Cs;
+					C1.get_s_t(points[0].cor(), Ct, Cs);
 
-				for (int i = 0, i_end = tmp_PC1s.size(); i < i_end; ++i) {
-					double t = tmp_PC1s[i].t_ub();
+					if (PC1.is_t_valid(Ct)) {
+						std::vector<double> Css;
+						PC1.get_s(Ct, Css);
 
-					if (std::abs(t - PC1.t_ub()) < SQI_EPS) continue;
+						if (Css.size() != 1) {
+							SQI_VERBOSE_ONLY_WARNING("may error!");
+							return 0;
+						}
 
-					std::vector<double> ss;
-					PC1.get_s(t, ss);
-					if (ss.size() != 1) {
-						SQI_VERBOSE_ONLY_COUT("may error!");
-						return 0;
-					}
-
-					Eigen::Vector3d intersect_point = C1.get_point(ss[0], t);
-
-					double ct = c1.get_t(intersect_point);
-
-					if (c1.is_t_valid(ct)) {
-						intersect_points.push_back(intersect_point);
-						intersect_cts.push_back(ct);
-						intersect_Cts.push_back(t);
+						if (std::abs(Css[0] - Cs) < SQI_EPS) { // cut!
+							ParameterizationCircle sub_c1;
+							if (c1.separate_t(sub_c1, ct) == 1) sub_c1s.push_back(sub_c1);
+							ParameterizationCylindricCurve sub_PC1;
+							if (PC1.separate_t(sub_PC1, Ct) == 1) sub_PC1s.push_back(sub_PC1);
+						}
 					}
 				}
-
-				// cut the curve
-				for (double t : intersect_Cts) {
-					ParameterizationCylindricCurve sub_PC1;
-					PC1.separate_t(sub_PC1, t);
-					sub_PC1s.push_back(sub_PC1);
-				}
-
-				// cut the circle
-				c1.separate_t(sub_c1s, intersect_cts);
 			}
 		}
-		else if (curves.size() == 1) {
-			SQI_VERBOSE_ONLY_COUT("circle is intersect");
+		else if (curves.size() > 0) { // intersect
+			std::vector<ParameterizationCylindricCurve> PC1s = { PC1 };
+			get_intersections(PC1s, curves);
 
-			ParameterizationCylindricCurve tmp_PC1 = PC1;
-			std::vector<ParameterizationCylindricCurve> sub_tmp_PC1s;
-			std::vector<ParameterizationCylindricCurve> sub_tmp_PC2s;
-			if (get_intersections(tmp_PC1, curves[0], sub_tmp_PC1s, sub_tmp_PC2s) > 0) { // have intersections, but may not in actual
-				std::vector<Eigen::Vector3d> intersect_points;
-				std::vector<double> intersect_cts;
-				std::vector<double> intersect_Cts;
+			std::vector<double> cutting_Cts;
+			std::vector<double> cutting_cts;
+			for (int i = 0, i_end = PC1s.size(); i < i_end; ++i) {
+				double Ct = PC1s[i].t_ub();
+				std::vector<double> Css;
+				PC1.get_s(Ct, Css);
+				if (Css.size() != 1) {
+					SQI_VERBOSE_ONLY_WARNING("may error!");
+					return 0;
+				}
 
-				for (int i = 0, i_end = sub_tmp_PC1s.size(); i < i_end; ++i) {
-					double t = sub_tmp_PC1s[i].t_ub();
+				Eigen::Vector3d intersect_point = C1.get_point(Css[0], Ct);
 
-					std::vector<double> ss;
-					PC1.get_s(t, ss);
-					if (ss.size() != 1) {
-						SQI_VERBOSE_ONLY_COUT("may error!");
-						return 0;
-					}
-
-					Eigen::Vector3d intersect_point = C1.get_point(ss[0], t);
-
+				if (c1.is_on(intersect_point)) {
 					double ct = c1.get_t(intersect_point);
-
-					if (std::abs((intersect_point - c1.cor()).norm() - c1.r()) > SQI_EPS) {
-						continue;
-					}
-
-					if (c1.is_t_valid(ct)) {
-						intersect_points.push_back(intersect_point);
-						intersect_cts.push_back(ct);
-						intersect_Cts.push_back(t);
+					if (c1.is_t_valid(ct)) { // cut!
+						cutting_Cts.push_back(Ct);
+						cutting_cts.push_back(ct);
 					}
 				}
+			}
+			std::sort(cutting_Cts.begin(), cutting_Cts.end());
 
-				// cut the curve
-				for (double t : intersect_Cts) {
-					ParameterizationCylindricCurve sub_PC1;
-					PC1.separate_t(sub_PC1, t);
-					sub_PC1s.push_back(sub_PC1);
-				}
-
-				// cut the circle
-				c1.separate_t(sub_c1s, intersect_cts);
+			// cut!
+			c1.separate_t(sub_c1s, cutting_cts);
+			for (int i = 0, i_end = cutting_Cts.size(); i < i_end; ++i) {
+				ParameterizationCylindricCurve sub_PC1;
+				if (PC1.separate_t(sub_PC1, cutting_Cts[i]) == 1) sub_PC1s.push_back(sub_PC1);
 			}
 		}
-		else {
-			SQI_VERBOSE_ONLY_COUT("not intersect");
-			return 0;
+		else { // not intersect
+			SQI_VERBOSE_ONLY_COUT("circle -- not intersect -- curve");
 		}
 
 		return sub_c1s.size() + sub_PC1s.size();

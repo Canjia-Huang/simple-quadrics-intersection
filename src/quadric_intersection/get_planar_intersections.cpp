@@ -6,7 +6,7 @@ namespace QuadricsIntersection
 		Plane& P1, Plane& P2,
 		Line& L
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Planes");
 
 		if (1 - std::abs(P1.nor().dot(P2.nor())) < SQI_EPS) { // parallel
 			return 0;
@@ -39,7 +39,7 @@ namespace QuadricsIntersection
 
 	int get_intersections(
 		Cylinder& C1, Plane& P1,
-		std::vector<ParameterizationCylindricLine>& lines,
+		std::vector<Line>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
 		return get_intersections(P1, C1, lines, curves);
@@ -55,91 +55,124 @@ namespace QuadricsIntersection
 
 	int get_intersections(
 		Plane& P1,
-		std::vector<Plane>& planes,
-		std::vector<Cylinder>& cylinders,
-		std::vector<Sphere>& spheres,
-		std::vector<Point>& res_points,
-		std::vector<Line>& res_lines,
-		std::vector<ParameterizationCircle>& res_circles,
-		std::vector<std::vector<ParameterizationCylindricLine>>& res_c_lines,
-		std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
+		std::vector<Point>& res_points, std::vector<Line>& res_lines, std::vector<ParameterizationCircle>& res_circles, std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves
 	) {
-		SQI_VERBOSE_ONLY_COUT("");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Plane and other primitives");
 
 		// init
 		std::vector<Point>().swap(res_points);
 		std::vector<Line>().swap(res_lines);
 		std::vector<ParameterizationCircle>().swap(res_circles);
-		std::vector<std::vector<ParameterizationCylindricLine>>().swap(res_c_lines);
 		std::vector<std::vector<ParameterizationCylindricCurve>>().swap(res_c_curves);
 
 		// get the intersections between Plane P1 and other primitives
-		std::vector<std::vector<Point>> res_points_array;
-		std::vector<std::vector<Line>> res_lines_array;
-		std::vector<std::vector<ParameterizationCircle>> res_circles_array;
-		std::vector<std::vector<ParameterizationCylindricLine>> res_c_lines_array;
-		std::vector<std::vector<ParameterizationCylindricCurve>> res_c_curves_array;
+		std::vector<std::vector<Line>> res_c_lines;
+		std::vector<std::vector<ParameterizationCircle>> res_c_circles;
+
+		// with planes
 		for (int i = 0, i_end = planes.size(); i < i_end; ++i) {
 			std::vector<Line> lines;
-
 			get_intersections(planes[i], P1, lines);
-
-			res_lines_array.push_back(lines);
+			if (lines.size() > 0) res_c_lines.push_back(lines);
 		}
+
+		// with cylinders
+		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
+			std::vector<Line> lines;
+			std::vector<ParameterizationCylindricCurve> curves;
+
+			get_intersections(cylinders[i], P1, lines, curves);
+
+			if (lines.size() > 0) res_c_lines.push_back(lines);
+			res_c_curves.push_back(curves);
+		}
+		
+		// with spheres
 		for (int i = 0, i_end = spheres.size(); i < i_end; ++i) {
 			std::vector<Point> points;
 			std::vector<ParameterizationCircle> circles;
 
 			get_intersections(spheres[i], P1, points, circles);
 
-			res_points_array.push_back(points);
-			res_circles_array.push_back(circles);
-		}
-		for (int i = 0, i_end = cylinders.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCylindricLine> c_lines;
-			std::vector<ParameterizationCylindricCurve> c_curves;
-
-			get_intersections(cylinders[i], P1, c_lines, c_curves);
-
-			res_c_lines_array.push_back(c_lines);
-			res_c_curves_array.push_back(c_curves);
+			for (int ii = 0, ii_end = points.size(); ii < ii_end; ++ii) res_points.push_back(points[ii]);
+			if (circles.size() > 0) res_c_circles.push_back(circles);
 		}
 
 		// process the intersections' intersections
-		for (int i = 0, i_end = res_points_array.size(); i < i_end; ++i) {
-			res_points.insert(res_points.end(), res_points_array[i].begin(), res_points_array[i].end());
-		}
-		for (int i = 0, i_end = res_lines_array.size(); i < i_end; ++i) {
-			std::vector<Line>* lines = &res_lines_array[i];
-
-			if (res_lines.size() > 0) {
-				get_intersections(*lines, res_lines);
+		
+		// curves and curves
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_curves.size(); j < j_end; ++j) {
+				if (i == j) continue;
+				get_intersections(res_c_curves[i], cylinders[i], res_c_curves[j], cylinders[j]);
 			}
-
-			res_lines.insert(res_lines.end(), lines->begin(), lines->end());
 		}
-		for (int i = 0, i_end = res_c_lines_array.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCylindricLine>* c_lines = &res_c_lines_array[i];
 
-			get_intersections(res_lines, *c_lines, cylinders[i]);
+		// curves and circles
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_circles.size(); j < j_end; ++j) {
+				get_intersections(res_c_circles[j], res_c_curves[i], cylinders[i]);
+			}
 		}
-		res_c_lines = res_c_lines_array;
-		for (int i = 0, i_end = res_circles_array.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCircle>* circles = &res_circles_array[i];
 
-			get_intersections(res_lines, *circles);
-			
-			res_circles.insert(res_circles.end(), circles->begin(), circles->end());
+		// curves and lines
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
+			get_intersections(res_lines, res_c_curves[i], cylinders[i]);
 		}
-		for (int i = 0, i_end = res_c_curves_array.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCylindricCurve>* curves = &res_c_curves_array[i];
 
-			get_intersections(res_lines, *curves, cylinders[i]);
+		// circles and circles
+		for (int i = 0, i_end = res_c_circles.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_circles.size(); j < j_end; ++j) {
+				if (i == j) continue;
+				get_intersections(res_c_circles[i], res_c_circles[j]);
+			}
 		}
-		res_c_curves = res_c_curves_array;
+
+		// circles and lines
+		for (int i = 0, i_end = res_c_lines.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_circles.size(); j < j_end; ++j) {
+				get_intersections(res_c_lines[i], res_c_circles[j]);
+			}
+		}
+
+		// lines and lines
+		for (int i = 0, i_end = res_c_lines.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_lines.size(); j < j_end; ++j) {
+				if (i == j) continue;
+				get_intersections(res_c_lines[i], res_c_lines[j]);
+			}
+		}
+
+		// points and curves
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
+			get_intersections(res_points, res_c_curves[i], cylinders[i]);
+		}
+
+		// points and circles
+		for (int i = 0, i_end = res_c_circles.size(); i < i_end; ++i) {
+			get_intersections(res_points, res_c_circles[i]);
+		}
+
+		// points and lines
+		for (int i = 0, i_end = res_c_lines.size(); i < i_end; ++i) {
+			get_intersections(res_points, res_c_lines[i]);
+		}
 
 		// return
+		for (int i = 0, i_end = res_c_lines.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_lines[i].size(); j < j_end; ++j) {
+				res_lines.push_back(res_c_lines[i][j]);
+			}
+		}
+		for (int i = 0, i_end = res_c_circles.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_circles[i].size(); j < j_end; ++j) {
+				res_circles.push_back(res_c_circles[i][j]);
+			}
+		}
+		int total_num = res_points.size() + res_lines.size() + res_circles.size();
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) total_num += res_c_curves[i].size();
 
-		return 0;
+		return total_num;
 	}
 }
