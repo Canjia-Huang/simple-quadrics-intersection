@@ -49,19 +49,12 @@ namespace QuadricsIntersection
 		return get_intersections(S1, C1, points, curves);
 	}
 
-	int get_intersections( // delete later
-		Cylinder& C1, Sphere& S1,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricCurve>& curves) {
-		return 0;
-	}
-
 	int get_intersections(
 		Sphere& S1, Sphere& S2,
 		std::vector<Point>& points,
 		std::vector<ParameterizationCircle>& circles
 	) {
-		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Spheres");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Sphere and a Sphere");
 
 		// init
 		std::vector<Point>().swap(points);
@@ -101,17 +94,18 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Sphere& S1,
 		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
-		std::vector<Point>& res_points, std::vector<ParameterizationCircle>& res_circles, std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves
+		std::vector<Point>& res_points, std::vector<ParameterizationCircle>& res_circles, std::vector<ParameterizationCylindricCurve>& res_curves
 	) {
-		SQI_VERBOSE_ONLY_TITLE("");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Sphere and other primitives");
 
 		// init
 		std::vector<Point>().swap(res_points);
 		std::vector<ParameterizationCircle>().swap(res_circles);
-		std::vector<std::vector<ParameterizationCylindricCurve>>().swap(res_c_curves);
+		std::vector<ParameterizationCylindricCurve>().swap(res_curves);
 
 		// get the intersections between sphere S1 and other primitives
 		std::vector<std::vector<ParameterizationCircle>> res_c_circles;
+		std::vector<std::vector<ParameterizationCylindricCurve>> res_c_curves;
 		
 		// with planes
 		for (int i = 0, i_end = planes.size(); i < i_end; ++i) {
@@ -152,14 +146,14 @@ namespace QuadricsIntersection
 		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
 			for (int j = 0, j_end = res_c_curves.size(); j < j_end; ++j) {
 				if (i == j) continue;
-				get_intersections(res_c_curves[i], cylinders[i], res_c_curves[j], cylinders[j]);
+				get_intersections(res_c_curves[i], res_c_curves[j]);
 			}
 		}
 
 		// curves and circles
 		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
 			for (int j = 0, j_end = res_c_circles.size(); j < j_end; ++j) {
-				get_intersections(res_c_circles[j], res_c_curves[i], cylinders[i]);
+				get_intersections(res_c_circles[j], res_c_curves[i]);
 			}
 		}
 
@@ -173,7 +167,7 @@ namespace QuadricsIntersection
 		
 		// points and curves
 		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
-			get_intersections(res_points, res_c_curves[i], cylinders[i]);
+			get_intersections(res_points, res_c_curves[i]);
 		}
 
 		// points and circles
@@ -187,9 +181,12 @@ namespace QuadricsIntersection
 				res_circles.push_back(res_c_circles[i][j]);
 			}
 		}
-		int total_num = res_points.size() + res_circles.size();
-		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) total_num += res_c_curves[i].size();
+		for (int i = 0, i_end = res_c_curves.size(); i < i_end; ++i) {
+			for (int j = 0, j_end = res_c_curves[i].size(); j < j_end; ++j) {
+				res_curves.push_back(res_c_curves[i][j]);
+			}
+		}
 
-		return total_num;
+		return res_points.size() + res_circles.size() + res_curves.size();
 	}
 }

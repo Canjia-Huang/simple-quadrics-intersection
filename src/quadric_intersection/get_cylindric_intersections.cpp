@@ -10,6 +10,8 @@ namespace QuadricsIntersection
 		Line& L1, Cylinder& C1,
 		std::vector<Point>& points
 	) {
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Line and a Cylinder");
+
 		// init
 		std::vector<Point>().swap(points);
 		points.reserve(2);
@@ -54,13 +56,6 @@ namespace QuadricsIntersection
 		}
 
 		return points.size();
-	}
-
-	int get_intersections( // delete later
-		Line& L1, Cylinder& C1,
-		std::vector<ParameterizationCylindricPoint>& points
-	) {
-		return 0;
 	}
 
 	int get_intersections(
@@ -137,7 +132,8 @@ namespace QuadricsIntersection
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360
+				-SQI_INFTY, SQI_INFTY, 0, 360,
+				C1
 			);
 
 			curves.push_back(PC);
@@ -146,20 +142,13 @@ namespace QuadricsIntersection
 		return lines.size() + curves.size();
 	}
 
-	int get_intersections( // delete later
-		Plane& P1, Cylinder& C1,
-		std::vector<ParameterizationCylindricLine>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves) {
-		return 0;
-	}
-
 	int get_intersections(
 		Cylinder& C1, Cylinder& C2,
 		std::vector<Point>& points,
 		std::vector<Line>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves
 	) {
-		SQI_VERBOSE_ONLY_TITLE("compute the intersections between two Cylinder");
+		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Cylinder and a Cylinder");
 
 		// init
 		std::vector<Point>().swap(points);
@@ -280,7 +269,8 @@ namespace QuadricsIntersection
 				// build parameterization curves
 				ParameterizationCylindricCurve PC_C2(
 					a_t, b_t_C2, c_t_C2,
-					-SQI_INFTY, SQI_INFTY, 0, 360
+					-SQI_INFTY, SQI_INFTY, 0, 360,
+					C2
 				);
 
 				// try to cut this parameterization curve
@@ -389,14 +379,6 @@ namespace QuadricsIntersection
 		return points.size() + lines.size() + curves.size();
 	}
 
-	int get_intersections( // delete later
-		Cylinder& C1, Cylinder& C2,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricLine>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves) {
-		return 0;
-	}
-
 	int get_intersections(
 		Sphere& S1, Cylinder& C1,
 		std::vector<Point>& points,
@@ -433,7 +415,8 @@ namespace QuadricsIntersection
 			std::vector<double> c_t = { 0, 0, 0, 0, 0, -center_to_axis_dot };
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360
+				-SQI_INFTY, SQI_INFTY, 0, 360,
+				C1
 			);
 			curves.push_back(PC);
 		}
@@ -466,7 +449,8 @@ namespace QuadricsIntersection
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360
+				-SQI_INFTY, SQI_INFTY, 0, 360,
+				C1
 			);
 
 			// try to cut this parameterization curves
@@ -522,16 +506,6 @@ namespace QuadricsIntersection
 
 		return points.size() + curves.size();
 	}
-
-	int get_intersections( // delete later
-		Sphere& S1, Cylinder& C1,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricCurve>& curves) {
-		return 0;
-	}
-
-
-
 
 	int get_intersections(
 		Cylinder& C1,
@@ -595,13 +569,13 @@ namespace QuadricsIntersection
 		}
 
 		// lines and curves
-		get_intersections(res_lines, res_curves, C1);
+		get_intersections(res_lines, res_curves);
 
 		// points and lines
 		get_intersections(res_points, res_lines);
 
 		// points and curves
-		get_intersections(res_points, res_curves, C1);
+		get_intersections(res_points, res_curves);
 
 		return res_points.size() + res_lines.size() + res_curves.size();
 	}

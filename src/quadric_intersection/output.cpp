@@ -2,20 +2,22 @@
 
 #include <iostream>
 #include <fstream>
+#include <random>
 
 namespace QuadricsIntersection 
 {
 	std::vector<Eigen::Vector3d> rand_color_bar;
 
 	void create_rand_color_bar(int num) {
-		srand(int(time(NULL)));
+		std::default_random_engine random(time(NULL));
+		std::uniform_real_distribution<double> rand(0., 1.);
 		rand_color_bar.reserve(num);
 		for (int i = 0; i < num; ++i) {
 			rand_color_bar.push_back(
 				Eigen::Vector3d(
-					double(std::rand()) / (RAND_MAX + 1) * 255,
-					double(std::rand()) / (RAND_MAX + 1) * 255,
-					double(std::rand()) / (RAND_MAX + 1) * 255));
+					rand(random) * 255,
+					rand(random) * 255,
+					rand(random) * 255));
 		}
 	}
 
@@ -204,41 +206,7 @@ namespace QuadricsIntersection
 		points.push_back(get_point(t_ub_));
 	}
 
-	void ParameterizationCylindricPoint::output_points(
-		Cylinder& C,
-		std::vector<Eigen::Vector3d>& points
-	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
-		std::vector<Eigen::Vector3d>().swap(points);
-		points.push_back(C.get_point(s_, t_));
-	}
-
-	void ParameterizationCylindricLine::output_points(
-		Cylinder& C,
-		std::vector<Eigen::Vector3d>& points,
-		double h, int h_seg 
-	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
-		std::vector<Eigen::Vector3d>().swap(points);
-
-		double h_step = h / h_seg;
-		if (h_step < SQI_EPS) {
-			SQI_VERBOSE_ONLY_WARNING("h or h_seg is invalid!");
-			return;
-		}
-		double center_s = 0;
-		Eigen::Vector3d cor = C.get_point(center_s, t_);
-		for (double cur_s = -0.5 * h, cur_s_end = 0.5 * h + SQI_EPS; cur_s < cur_s_end; cur_s += h_step) {
-			if (center_s + cur_s >= s_lb_ && center_s + cur_s <= s_ub_) {
-				points.push_back(cor + (center_s + cur_s) * C.nor());
-			}
-		}
-	}
-
 	void ParameterizationCylindricCurve::output_points(
-		Cylinder& C,
 		std::vector<Eigen::Vector3d>& points,
 		double t_step
 	) {
@@ -252,7 +220,7 @@ namespace QuadricsIntersection
 
 			for (double s : ss) {
 				if (s >= s_lb_ && s <= s_ub_) {
-					points.push_back(C.get_point(s, cur_t));
+					points.push_back(get_point(s, cur_t));
 				}
 			}
 		}
@@ -261,19 +229,15 @@ namespace QuadricsIntersection
 		get_s(t_ub_ - SQI_EPS, ss);
 		for (double s : ss) {
 			if (s >= s_lb_ && s <= s_ub_) {
-				points.push_back(C.get_point(s, t_ub_ - SQI_EPS));
+				points.push_back(get_point(s, t_ub_ - SQI_EPS));
 			}
 		}
 	}
 
 	void write_result_mesh(
 		std::string output_file_path,
-		std::vector<Plane>& planes,
-		std::vector<Cylinder>& cylinders,
-		std::vector<Sphere>& spheres
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
 		std::ofstream out(output_file_path);
 
 		std::vector<Eigen::Vector3d> points;
@@ -315,49 +279,11 @@ namespace QuadricsIntersection
 		out.close();
 	}
 
-	void write_planar_result_points(
+	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points,
-		std::vector<Line>& lines
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
-		int primitive_num = points.size() + lines.size();
-		if (rand_color_bar.size() < primitive_num) {
-			create_rand_color_bar(primitive_num);
-		}
-
-		std::ofstream out(output_file_path);
-		int color_num = 0;
-
-		for (Point P : points) {
-			Eigen::Vector3d color = rand_color_bar[color_num++];
-
-			out << "v" << " " << P.cor().transpose() << " " << color.transpose() << std::endl;
-		}
-
-		for (Line L : lines) {
-			Eigen::Vector3d color = rand_color_bar[color_num++];
-
-			std::vector<Eigen::Vector3d> output_points;
-			L.output_points(output_points);
-
-			for (Eigen::Vector3d p : output_points) {
-				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
-			}
-		}
-	}
-
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<Point>& points,
-		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves
-	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
-		int primitive_num = points.size() + lines.size() + curves.size();
+		int primitive_num = points.size() + lines.size() + circles.size() + curves.size();
 		if (rand_color_bar.size() < primitive_num) {
 			create_rand_color_bar(primitive_num);
 		}
@@ -382,92 +308,6 @@ namespace QuadricsIntersection
 			}
 		}
 
-		for (ParameterizationCylindricCurve PC : curves) {
-			Eigen::Vector3d color = rand_color_bar[color_num++];
-
-			std::vector<Eigen::Vector3d> output_points;
-			PC.output_points(C, output_points);
-
-			for (Eigen::Vector3d p : output_points) {
-				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
-			}
-		}
-		out.close();
-	}
-
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<Line>& lines
-	) {
-		std::vector<Point> points;
-		std::vector<ParameterizationCylindricCurve> curves;
-		write_cylinder_result_points(output_file_path, C, points, lines, curves);
-	}
-
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<ParameterizationCylindricCurve>& curves
-	) {
-		std::vector<Point> points;
-		std::vector<Line> lines;
-		write_cylinder_result_points(output_file_path, C, points, lines, curves);
-	}
-
-	void write_cylinders_result_points(
-		std::string output_file_path,
-		std::vector<std::vector<ParameterizationCylindricCurve>>& c_curves, std::vector<Cylinder>& cylinders
-	) {
-		// SQI_VERBOSE_ONLY_TITLE("");
-
-		int primitive_num = 0;
-		for (int i = 0, i_end = c_curves.size(); i < i_end; ++i) primitive_num += c_curves[i].size();
-		if (rand_color_bar.size() < primitive_num) {
-			create_rand_color_bar(primitive_num);
-		}
-
-		std::ofstream out(output_file_path);
-		int color_num = 0;
-
-		for (int i = 0, i_end = c_curves.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCylindricCurve>* curves = &c_curves[i];
-
-			for (ParameterizationCylindricCurve PC : *curves) {
-				Eigen::Vector3d color = rand_color_bar[color_num++];
-
-				std::vector<Eigen::Vector3d> output_points;
-				PC.output_points(cylinders[i], output_points);
-
-				for (Eigen::Vector3d p : output_points) {
-					out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
-				}
-			}
-		}
-
-		out.close();
-	}
-
-	void write_sphere_result_points(
-		std::string output_file_path,
-		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles
-	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
-		int primitive_num = points.size() + circles.size();
-		if (rand_color_bar.size() < primitive_num) {
-			create_rand_color_bar(primitive_num);
-		}
-
-		std::ofstream out(output_file_path);
-		int color_num = 0;
-
-		for (Point p : points) {
-			Eigen::Vector3d color = rand_color_bar[color_num++];
-
-			out << "v" << " " << p.cor().transpose() << " " << color.transpose() << std::endl;
-		}
 		for (ParameterizationCircle c : circles) {
 			Eigen::Vector3d color = rand_color_bar[color_num++];
 
@@ -479,6 +319,15 @@ namespace QuadricsIntersection
 			}
 		}
 
-		out.close();
+		for (ParameterizationCylindricCurve PC : curves) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
+
+			std::vector<Eigen::Vector3d> output_points;
+			PC.output_points(output_points);
+
+			for (Eigen::Vector3d p : output_points) {
+				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
+			}
+		}
 	}
 }

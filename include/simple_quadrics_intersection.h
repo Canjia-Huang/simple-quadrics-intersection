@@ -11,7 +11,7 @@
 // Eigen
 #include <Eigen/Dense>
 
-#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -30,7 +30,7 @@
 #define SQI_REC_PI 0.318309886183791
 
 namespace QuadricsIntersection {
-	// -------------------------------------------------------------------------other functions-------------------------------------------------------------------------
+	// -----------------------other functions
 
 	struct pair_hash {
 		template <class T1, class T2>
@@ -108,7 +108,8 @@ namespace QuadricsIntersection {
 		return (cos_ang * f + (1 - cos_ang) * f.dot(r) * r + sin_ang * r.cross(f)).normalized();
 	}
 
-	// -------------------------------------------------------------------------the quadric primitives-------------------------------------------------------------------------
+	// -----------------------the quadric primitives
+
 	class Plane {
 	public:
 		Plane() {};
@@ -156,6 +157,21 @@ namespace QuadricsIntersection {
 			double tv_component = plane_cor_cor.dot(v_);
 			t = safetyAcos(tu_component);
 			if (tv_component < 0) t = 360 - t;
+		}
+		Cylinder& operator =(const Cylinder& C) {
+			if (this != &C) {
+				this->cor_ = C.cor_;
+				this->nor_ = C.nor_;
+				this->r_ = C.r_;
+				this->u_ = C.u_; this->v_ = C.v_;
+			}
+			return *this;
+		}
+		bool compare(Cylinder& C) {
+			if (this == &C) return true;
+			if ((this->cor_ - C.cor_).squaredNorm() < SQI_EPS &&
+				1 - this->nor_.dot(C.nor_) < SQI_EPS) return true;
+			return false;
 		}
 
 		Eigen::Vector3d& cor() { return cor_; }
@@ -227,7 +243,7 @@ namespace QuadricsIntersection {
 		double r_; // the radius of the sphere
 	};
 
-	// -------------------------------------------------------------------------the intersection primitives-------------------------------------------------------------------------
+	// -----------------------the intersection primitives
 
 	class Point {
 	public:
@@ -288,8 +304,10 @@ namespace QuadricsIntersection {
 		double s_lb_, s_ub_;
 	};
 
+	/* Parameterization circle
+	* c(t) = cor_ + r_ * (cos(t) * u_ + sin(t) * v)
+	* t = [t_lb, t_ub] */
 	class ParameterizationCircle {
-		// C(t) = cor_ + r_ * (cos(t) * u_ + sin(t) * v)
 	public:
 		ParameterizationCircle() {
 			t_lb_ = 0; t_ub_ = 360;
@@ -334,9 +352,7 @@ namespace QuadricsIntersection {
 			this->t_lb_ = t; C.t_ub_ = t;
 			return 1;
 		}
-		/* separate the circle according to some t
-		/note: ts may not need to be sorted.
-		*/
+		/* separate the circle according to some t */
 		void separate_t(std::vector<ParameterizationCircle>& Cs, std::vector<double>& ts) {
 			std::vector<ParameterizationCircle>().swap(Cs);
 
@@ -366,62 +382,10 @@ namespace QuadricsIntersection {
 		double t_lb_, t_ub_;
 	};
 
-	class ParameterizationCylindricPoint {
-	public:
-		ParameterizationCylindricPoint() {};
-		~ParameterizationCylindricPoint() {};
-		ParameterizationCylindricPoint(double s, double t) {
-			s_ = s; t_ = t;
-		}
-		Eigen::Vector3d get_point(Cylinder& C) {
-			return C.get_point(s_, t_);
-		}
-		double& s() { return s_; }
-		double& t() { return t_; }
-
-		void output_points(
-			Cylinder& C,
-			std::vector<Eigen::Vector3d>& points);
-	private:
-		double s_, t_;
-	};
-
-	class ParameterizationCylindricLine {
-	public:
-		ParameterizationCylindricLine() {
-			s_lb_ = -SQI_INFTY; s_ub_ = SQI_INFTY;
-		};
-		~ParameterizationCylindricLine() {};
-		ParameterizationCylindricLine(double t) {
-			t_ = t;
-			s_lb_ = -SQI_INFTY; s_ub_ = SQI_INFTY;
-		}
-		ParameterizationCylindricLine(double t, double s_lb, double s_ub) {
-			t_ = t;
-			s_lb_ = s_lb; s_ub_ = s_ub;
-		}
-		// divide the line into two parts according to s, modify self [s, ub], return [lb, s]
-		int separate_s(ParameterizationCylindricLine& L, double s) {
-			if (s < s_lb_ || s > s_ub_) return 0;
-			L = *this;
-			L.s_ub_ = s; this->s_lb_ = s;
-			return 1;
-		}
-		double& t() { return t_; }
-		double& s_lb() { return s_lb_; }
-		double& s_ub() { return s_ub_; }
-
-		void output_points(
-			Cylinder& C,
-			std::vector<Eigen::Vector3d>& points,
-			double h = 20., int h_seg = 200);
-	private:
-		double t_;
-		double s_lb_, s_ub_;
-	};
-
+	/* Parameterization cylinder (of a cylinder)
+	* a(t) * s^2 + b(t) * s + c(t) = 0
+	* t = [t_lb, t_ub], s = [s_lb, s_ub] (also determine by s_part) */
 	class ParameterizationCylindricCurve {
-		// a(t) * s^2 + b(t) * s + c(t) = 0
 	public:
 		ParameterizationCylindricCurve() {
 			std::vector<double>(1, 0).swap(a_t_);
@@ -430,6 +394,7 @@ namespace QuadricsIntersection {
 			s_lb_ = -SQI_INFTY; s_ub_ = SQI_INFTY;
 			t_lb_ = 0; t_ub_ = 360;
 			s_part_ = 0;
+			C_ = Cylinder();
 		}
 		~ParameterizationCylindricCurve() {
 			std::vector<double>().swap(a_t_);
@@ -438,20 +403,24 @@ namespace QuadricsIntersection {
 		};
 		ParameterizationCylindricCurve(
 			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
-			double s_lb, double s_ub, double t_lb, double t_ub
+			double s_lb, double s_ub, double t_lb, double t_ub,
+			Cylinder& C
 		) {
 			a_t_ = a_t; b_t_ = b_t; c_t_ = c_t;
 			s_lb_ = s_lb; s_ub_ = s_ub; t_lb_ = t_lb; t_ub_ = t_ub;
 			s_part_ = 0;
+			C_ = C;
 		}
 		ParameterizationCylindricCurve(
 			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
 			double s_lb, double s_ub, double t_lb, double t_ub,
-			int s_part
+			int s_part,
+			Cylinder& C
 		) {
 			a_t_ = a_t; b_t_ = b_t; c_t_ = c_t;
 			s_lb_ = s_lb; s_ub_ = s_ub; t_lb_ = t_lb; t_ub_ = t_ub;
 			s_part_ = s_part;
+			C_ = C;
 		}
 		ParameterizationCylindricCurve(const ParameterizationCylindricCurve& PC) {
 			this->a_t_ = PC.a_t_;
@@ -459,6 +428,7 @@ namespace QuadricsIntersection {
 			this->c_t_ = PC.c_t_;
 			this->s_lb_ = PC.s_lb_; this->s_ub_ = PC.s_ub_; this->t_lb_ = PC.t_lb_; this->t_ub_ = PC.t_ub_;
 			this->s_part_ = PC.s_part_;
+			this->C_ = PC.C_;
 		}
 		ParameterizationCylindricCurve& operator =(const ParameterizationCylindricCurve& PC) {
 			if (this != &PC) {
@@ -467,6 +437,7 @@ namespace QuadricsIntersection {
 				this->c_t_ = PC.c_t_;
 				this->s_lb_ = PC.s_lb_; this->s_ub_ = PC.s_ub_; this->t_lb_ = PC.t_lb_; this->t_ub_ = PC.t_ub_;
 				this->s_part_ = PC.s_part_;
+				this->C_ = PC.C_;
 			}
 			return *this;
 		}
@@ -483,6 +454,9 @@ namespace QuadricsIntersection {
 			PC.t_ub_ = t;
 			this->t_lb_ = t;
 			return 1;
+		}
+		Eigen::Vector3d get_point(double s, double t) {
+			return C_.get_point(s, t);
 		}
 		int get_s(double t, std::vector<double>& s) {
 			// init
@@ -525,13 +499,22 @@ namespace QuadricsIntersection {
 			return true;
 		}
 		bool is_t_valid(double t) {
-			while (t > 360) t -= 360;
+			// while (t > 360) t -= 360;
 			if (t > t_lb_ - SQI_EPS && t < t_ub_ + SQI_EPS) return true;
 			return false;
 		}
 		bool is_t_strict_valid(double t) {
 			while (t > 360) t -= 360;
 			if (t > t_lb_ + SQI_EPS && t < t_ub_ - SQI_EPS) return true;
+			return false;
+		}
+		bool is_s_t_valid(double s, double t) {
+			if (is_t_valid(t) == false) return false;
+			std::vector<double> ss;
+			get_s(t, ss);
+			for (int i = 0, i_end = ss.size(); i < i_end; ++i) {
+				if (std::abs(ss[i] - s) < SQI_EPS) return true;
+			}
 			return false;
 		}
 		bool compare(ParameterizationCylindricCurve& PC) {
@@ -556,6 +539,7 @@ namespace QuadricsIntersection {
 		double& t_lb() { return t_lb_; }
 		double& t_ub() { return t_ub_; }
 		int& s_part() { return s_part_; }
+		Cylinder& C() { return C_; }
 
 		void verbose() {
 			SQI_VERBOSE_ONLY_COUT("a_t_:" << " " << a_t_[0]);
@@ -565,7 +549,6 @@ namespace QuadricsIntersection {
 			SQI_VERBOSE_ONLY_COUT("t_bound:" << " " << t_lb_ << "--" << t_ub_);
 		}
 		void output_points(
-			Cylinder& C,
 			std::vector<Eigen::Vector3d>& points,
 			double t_step = 0.5);
 	private:
@@ -574,11 +557,12 @@ namespace QuadricsIntersection {
 		std::vector<double> c_t_; // = [0] * cos(t)^2 + [1] * sin(t)^2 + [2] * sin(t) * cos(t) + [3] * cos(t) + [4] * sin(t) + [5]
 		double s_lb_, s_ub_, t_lb_, t_ub_;
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
+		Cylinder C_;
 	};
 
-	// -------------------------------------------------------------------------assessment of the intersections-------------------------------------------------------------------------
+	// -----------------------assessment of the intersections between primitives
 
-	// -----------------------------------about plane-----------------------------------
+	// -----------------------about plane
 
 	/* Get the intersecting line between Plane P1 and Plane P2.
 	*  Return the number of intersections.
@@ -591,7 +575,6 @@ namespace QuadricsIntersection {
 		std::vector<Line>& Ls);
 
 	/* Get the intersecting line between Cylinder C1 and Plane P1.
-	/note: using Cylinder C1 as the parameterizatoin surface.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -607,38 +590,25 @@ namespace QuadricsIntersection {
 		std::vector<Point>& points,
 		std::vector<ParameterizationCircle>& circles);
 
-	// -----------------------------------about cylinder-----------------------------------
+	// -----------------------about cylinder
 
 	/* Get the intersections between Line L1 and Cylinder C1.
-	/note: using Cylinder C1 as the parameterizatoin surface.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
 		Line& L1, Cylinder& C1,
 		std::vector<Point>& points);
 
-	// delete later
-	int get_intersections(
-		Line& L1, Cylinder& C1,
-		std::vector<ParameterizationCylindricPoint>& points);
-
 	/* Get the intersections between Plane P1 and Cylinder C1.
-	/note: using Cylinder C1 as the parameterizatoin surface.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
 		Plane& P1, Cylinder& C1,
 		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves);
-
-	// delete later
-	int get_intersections(
-		Plane& P1, Cylinder& C1,
-		std::vector<ParameterizationCylindricLine>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
 	/* Get the intersections between Cylinder C1 and Cylinder C2.
-	/note: using Cylinder C2 as the parameterizatoin surface.
+	/note: the result curve are on cylinder C2's parameterization surface
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -647,15 +617,7 @@ namespace QuadricsIntersection {
 		std::vector<Line>& lines,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
-	// delete later
-	int get_intersections(
-		Cylinder& C1, Cylinder& C2,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricLine>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves);
-
 	/* Get the intersections between Sphere S1 and Cylinder C1.
-	/note: using Cylinder C1 as the parameterizatoin surface.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -663,16 +625,9 @@ namespace QuadricsIntersection {
 		std::vector<Point>& points,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
-	// delete later
-	int get_intersections(
-		Sphere& S1, Cylinder& C1,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricCurve>& curves);
-
-	// -----------------------------------about sphere-----------------------------------
+	// -----------------------about sphere
 
 	/* Get the intersections between Plane P1 and Sphere S1.
-	/note: using the vector from S2's center to a point on P1 as the parameterizatoin circle's normal.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -681,7 +636,6 @@ namespace QuadricsIntersection {
 		std::vector<ParameterizationCircle>& circles);
 
 	/* Get the intersections between Cylinder C1 and Sphere S1.
-	/note: using Cylinder C1 as the parameterizatoin surface.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -689,14 +643,7 @@ namespace QuadricsIntersection {
 		std::vector<Point>& points,
 		std::vector<ParameterizationCylindricCurve>& curves);
 
-	// delete later
-	int get_intersections(
-		Cylinder& C1, Sphere& S1,
-		std::vector<ParameterizationCylindricPoint>& points,
-		std::vector<ParameterizationCylindricCurve>& curves);
-
 	/* Get the intersections between Sphere S1 and Sphere S2.
-	/note: using the vector from S2's center to S1's center as the parameterizatoin circle's normal.
 	*  Return the number of intersections.
 	*/
 	int get_intersections(
@@ -704,166 +651,127 @@ namespace QuadricsIntersection {
 		std::vector<Point>& points,
 		std::vector<ParameterizationCircle>& circles);
 
-	// -------------------------------------------------------------------------assessment of the intersection primitives' intersections-------------------------------------------------------------------------
+	// -----------------------assessment of the intersections between primitives' intersections
 
+	/* Get the intersections between Point P1 and Line L1.
+	*  This function will involve clipping the original input, and outputting other clipped primitives through std::vector.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Point& P1, Line& L1,
 		std::vector<Line>& sub_L1s);
-
 	int get_intersections(
 		std::vector<Point>& P1s,
 		std::vector<Line>& L1s);
 
+	/* Get the intersections between Point P1 and Circle c1.
+	*  This function will involve clipping the original input, and outputting other clipped primitives through std::vector.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
 		Point& P1, ParameterizationCircle& c1,
 		std::vector<ParameterizationCircle>& sub_c1s);
-
 	int get_intersections(
 		std::vector<Point>& P1s,
 		std::vector<ParameterizationCircle>& c1s);
 
+	/* Get the intersections between Point P1 and CylindricCurve PC1.
+	*  This function will involve clipping the original input, and outputting other clipped primitives through std::vector.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
-		Point& P1, ParameterizationCylindricCurve& PC1, Cylinder& C1,
+		Point& P1, ParameterizationCylindricCurve& PC1,
 		std::vector<ParameterizationCylindricCurve>& sub_PC1s);
-
 	int get_intersections(
-		std::vector<Point>& Ps,
-		std::vector<ParameterizationCylindricCurve>& PCs, Cylinder& C1);
+		std::vector<Point>& P1s,
+		std::vector<ParameterizationCylindricCurve>& PC1s);
 
-	/*	Get the results of the intersection between a Line L1 and a Line L2.
-	*	This function will involve clipping the original input, and outputting other clipped lines through std::vector.
-	*	Return The number of newly generated lines.
+	/* Get the intersections between Line L1 and Line L2.
+	*  This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
 	*/
 	int get_intersections(
 		Line& L1, Line& L2,
 		std::vector<Line>& sub_L1s,
 		std::vector<Line>& sub_L2s);
-
-	/*	Get the results of the intersection between parameterization Lines L1s and Lines L2s, and the results are stored in the original input std::vector.
-	*	Return the number of total lines.
-	*/
 	int get_intersections(
 		std::vector<Line>& L1s,
 		std::vector<Line>& L2s);
 
-	/*	Get the results of the intersection between a Line L1 and a parameterization cylindric Line PL1 (on the cylinder C1).
-	*	This function will involve clipping the original input, and outputting other clipped lines through std::vector.
-	*	Return The number of newly generated lines.
+	/* Get the intersections between Line L1 and Circle c1.
+	*  This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
 	*/
-	int get_intersections(
-		Line& L1, ParameterizationCylindricLine& PL1, Cylinder& C1,
-		std::vector<Line>& sub_L1s,
-		std::vector<ParameterizationCylindricLine>& sub_PL1s);
-
-	int get_intersections(
-		std::vector<Line>& L1s,
-		std::vector<ParameterizationCylindricLine>& CL1s, Cylinder& C1);
-
 	int get_intersections(
 		Line& L1, ParameterizationCircle& c1,
 		std::vector<Line>& sub_L1s,
 		std::vector<ParameterizationCircle>& sub_c1s);
-
 	int get_intersections(
 		std::vector<Line>& L1s,
 		std::vector<ParameterizationCircle>& c1s);
 
+	/* Get the intersections between Line L1 and CylindricCurve PC1.
+	*  This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
+	*/
 	int get_intersections(
-		Line& L1, ParameterizationCylindricCurve& PC1, Cylinder& C1,
+		Line& L1, ParameterizationCylindricCurve& PC1,
 		std::vector<Line>& sub_L1s,
 		std::vector<ParameterizationCylindricCurve>& sub_PC1s);
-
 	int get_intersections(
 		std::vector<Line>& L1s,
-		std::vector<ParameterizationCylindricCurve>& PC1s, Cylinder& C1);
-
-	/*	Get the results of the intersection between a parameterization Line L1 and a parameterization Curve PC1.
-	*	This function will involve clipping the original input, and outputting other clipped lines and curves through std::vector.
-	*	Return The number of newly generated lines and curves.
-	*/
-	int get_intersections(
-		ParameterizationCylindricLine& L1, ParameterizationCylindricCurve& PC1,
-		std::vector<ParameterizationCylindricLine>& sub_L1s,
-		std::vector<ParameterizationCylindricCurve>& sub_PC1s);
-
-	/*	Get the results of the intersection between parameterization Lines L1s and parameterization Curves PC1s, and the results are stored in the original input std::vector.
-	*	Return the number of total lines and curves.
-	*/
-	int get_intersections(
-		std::vector<ParameterizationCylindricLine>& L1s,
 		std::vector<ParameterizationCylindricCurve>& PC1s);
 
-	/*	Get the results of the intersection between a parameterization Curve PC1 and a parameterization Curve PC2.
-	*	This function will involve clipping the original input, and outputting other clipped curves through std::vector.
-	*	Return the number of newly generated curves.
-	*/
-	int get_intersections(
-		ParameterizationCylindricCurve& PC1, ParameterizationCylindricCurve& PC2,
-		std::vector<ParameterizationCylindricCurve>& sub_PC1s,
-		std::vector<ParameterizationCylindricCurve>& sub_PC2s,
-		double t_step = 1.);
-
-	/*	Get the results of the intersection between parameterization Curves PC1s and parameterization Curves PC2s, and the results are stored in the original input std::vector.
-	*   Return the number of total curves.
-	*/
-	int get_intersections(
-		std::vector<ParameterizationCylindricCurve>& PC1s,
-		std::vector<ParameterizationCylindricCurve>& PC2s,
-		double t_step = 1.);
-
-	int get_intersections(
-		std::vector<ParameterizationCylindricCurve>& PC1s, Cylinder& C1,
-		std::vector<ParameterizationCylindricCurve>& PC2s, Cylinder& C2,
-		double t_step = 1.);
-
-	/*	Get the results of the intersection between a parameterization Circle c1 and a parameterization Curve PC1 (on the Cylinder C1).
-	*	This function will involve clipping the original input, and outputting other clipped circles and curves through std::vector.
-	/note: assume that the circle and the curve are on a same sphere
-	*	Return The number of newly generated circles and curves.
-	*/
-	int get_intersections(
-		ParameterizationCircle& c1, ParameterizationCylindricCurve& PC1, Cylinder& C1,
-		std::vector<ParameterizationCircle>& sub_c1s,
-		std::vector<ParameterizationCylindricCurve>& sub_PC1s);
-
-	/*	Get the results of the intersection between parameterization Circles c1s and parameterization Curves PC1s (on the Cylinder C1), and the results are stored in the original input std::vector.
-	*   Return the number of total circles and curves.
-	*/
-	int get_intersections(
-		std::vector<ParameterizationCircle>& c1s,
-		std::vector<ParameterizationCylindricCurve>& PC1s, Cylinder& C1);
-
-	/*	Get the results of the intersection between a parameterization Circle c1 and a parameterization Circle c2.
-	*	This function will involve clipping the original input, and outputting other clipped circles through std::vector.
-	/note: assume that both the circles are on a same sphere
-	*	Return The number of newly generated circles.
+	/* Get the intersections between Circle c1 and Circle c2.
+	*  This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
 	*/
 	int get_intersections(
 		ParameterizationCircle& c1, ParameterizationCircle& c2,
 		std::vector<ParameterizationCircle>& sub_c1s,
 		std::vector<ParameterizationCircle>& sub_c2s);
-
-	/*	Get the results of the intersection between parameterization Circles c1s and parameterization Circles c2s, and the results are stored in the original input std::vector.
-	*   Return the number of total circles.
-	*/
 	int get_intersections(
 		std::vector<ParameterizationCircle>& c1s,
 		std::vector<ParameterizationCircle>& c2s);
 
-	// -------------------------------------------------------------------------use for testing-------------------------------------------------------------------------
+	/* Get the intersections between Circle c1 and CylindricCurve PC1.
+	*  This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
+	*/
+	int get_intersections(
+		ParameterizationCircle& c1, ParameterizationCylindricCurve& PC1,
+		std::vector<ParameterizationCircle>& sub_c1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s);
+	int get_intersections(
+		std::vector<ParameterizationCircle>& c1s,
+		std::vector<ParameterizationCylindricCurve>& PC1s);
+
+	/* Get the intersections between Cylindric PC1 and CylindricCurve PC2.
+	*	This function will involve clipping the original input, and outputting other clipped lines through std::vector.
+	*  Return the number of intersections.
+	*/
+	int get_intersections( // PC1 and PC2 must on the same cylinder
+		ParameterizationCylindricCurve& PC1, ParameterizationCylindricCurve& PC2,
+		std::vector<ParameterizationCylindricCurve>& sub_PC1s,
+		std::vector<ParameterizationCylindricCurve>& sub_PC2s,
+		double t_step = 1.);
+	int get_intersections(
+		std::vector<ParameterizationCylindricCurve>& PC1s,
+		std::vector<ParameterizationCylindricCurve>& PC2s,
+		double t_step = 1.);
+
+	// -----------------------just use for testing
 
 	/* Get the intersections between Plane P1 and other primitives.
-	/note: the result cylindric lines and cylindric curve using cylinders as the parameterization sufaces
-	Return the number of all intersections.
+	*  Return the number of all intersections.
 	*/
 	int get_intersections(
 		Plane& P1,
 		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
-		std::vector<Point>& res_points, std::vector<Line>& res_lines, std::vector<ParameterizationCircle>& res_circles, std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves);
+		std::vector<Point>& res_points, std::vector<Line>& res_lines, std::vector<ParameterizationCircle>& res_circles, std::vector<ParameterizationCylindricCurve>& res_curves);
 
 	/* Get the intersections between Cylinder C1 and other primitives.
-	/note: using Cylinder C1 as the parameterization surface.
-	Return the number of all intersections.
+	*  Return the number of all intersections.
 	*/
 	int get_intersections(
 		Cylinder& C1,
@@ -871,61 +779,26 @@ namespace QuadricsIntersection {
 		std::vector<Point>& res_points, std::vector<Line>& res_lines, std::vector<ParameterizationCylindricCurve>& res_curves);
 
 	/* Get the intersections between Sphere S1 and other primitives.
-	/note: the result cylindric point and cylindric curve using cylinders as the parameterization sufaces
-	Return the number of all intersections.
+	*  Return the number of all intersections.
 	*/
 	int get_intersections(
 		Sphere& S1,
 		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
-		std::vector<Point>& res_points, std::vector<ParameterizationCircle>& res_circles, std::vector<std::vector<ParameterizationCylindricCurve>>& res_c_curves);
+		std::vector<Point>& res_points, std::vector<ParameterizationCircle>& res_circles, std::vector<ParameterizationCylindricCurve>& res_curves);
 
-	// -------------------------------------------------------------------------output for debug-------------------------------------------------------------------------
+	// -----------------------output for debug
 
 	/* Output the primitives as the meshes and export to an OBJ file.
 	*/
 	void write_result_mesh(
 		std::string output_file_path,
-		std::vector<Plane>& planes,
-		std::vector<Cylinder>& cylinders,
-		std::vector<Sphere>& spheres);
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres);
 
-	/* Output the intersection primitives as points and export to an OBJ file.
-	/note: using Cylinder C as the parameterization surface for cylindric primitives.
+	/* Output the primitives as the points and export to an OBJ file.
 	*/
-	void write_planar_result_points(
+	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points,
-		std::vector<Line>& lines);
-
-	/* Output the intersection primitives as points and export to an OBJ file.
-	/note: using Cylinder C as the parameterization surface.
-	*/
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<Point>& points,
-		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves);
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<Line>& lines);
-	void write_cylinder_result_points(
-		std::string output_file_path,
-		Cylinder& C,
-		std::vector<ParameterizationCylindricCurve>& curves);
-
-	void write_cylinders_result_points(
-		std::string output_file_path,
-		std::vector<std::vector<ParameterizationCylindricCurve>>& c_curves, std::vector<Cylinder>& cylinders);
-
-
-	/* Output the intersection primitives as points and export to an OBJ file.
-	*/
-	void write_sphere_result_points(
-		std::string output_file_path,
-		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles);
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves);
 }
 
 #endif
