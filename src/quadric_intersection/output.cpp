@@ -4,6 +4,10 @@
 #include <fstream>
 #include <random>
 
+// dont show the VERBOSE info
+#define SQI_VERBOSE_ONLY_TITLE(x)
+#define SQI_VERBOSE_ONLY_COUT(x)
+
 namespace QuadricsIntersection 
 {
 	std::vector<Eigen::Vector3d> rand_color_bar;
@@ -236,7 +240,8 @@ namespace QuadricsIntersection
 
 	void write_result_mesh(
 		std::string output_file_path,
-		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
+		double scale
 	) {
 		std::ofstream out(output_file_path);
 
@@ -244,7 +249,7 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector3i> faces;
 		int total_points_nb = 0;
 		for (Plane P : planes) {
-			P.output_model(points, faces);
+			P.output_model(points, faces, scale, scale);
 
 			for (Eigen::Vector3d p : points) {
 				out << "v" << " " << p.transpose() << std::endl;
@@ -255,7 +260,7 @@ namespace QuadricsIntersection
 			total_points_nb += points.size();
 		}
 		for (Cylinder C : cylinders) {
-			C.output_model(points, faces);
+			C.output_model(points, faces, 32, 2 * scale);
 
 			for (Eigen::Vector3d p : points) {
 				out << "v" << " " << p.transpose() << std::endl;
@@ -277,6 +282,39 @@ namespace QuadricsIntersection
 			total_points_nb += points.size();
 		}
 		out.close();
+	}
+
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Plane>& planes,
+		double scale
+	) {
+		std::vector<Cylinder> cylinders; std::vector<Sphere> spheres;
+		write_result_mesh(output_file_path,
+			planes, cylinders, spheres,
+			scale);
+	}
+
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Cylinder>& cylinders,
+		double scale
+	) {
+		std::vector<Plane> planes; std::vector<Sphere> spheres;
+		write_result_mesh(output_file_path,
+			planes, cylinders, spheres,
+			scale);
+	}
+
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Sphere>& spheres,
+		double scale
+	) {
+		std::vector<Plane> planes; std::vector<Cylinder> cylinders;
+		write_result_mesh(output_file_path,
+			planes, cylinders, spheres,
+			scale);
 	}
 
 	void write_result_points(
@@ -329,5 +367,12 @@ namespace QuadricsIntersection
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 		}
+	}
+
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves) {
+		std::vector<ParameterizationCircle> circles;
+		write_result_points(output_file_path, points, lines, circles, curves);
 	}
 }

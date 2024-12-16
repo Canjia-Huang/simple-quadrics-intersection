@@ -11,7 +11,7 @@
 // Eigen
 #include <Eigen/Dense>
 
-// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -792,13 +792,30 @@ namespace QuadricsIntersection {
 	*/
 	void write_result_mesh(
 		std::string output_file_path,
-		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres);
+		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
+		double scale = 1.);
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Plane>& planes,
+		double scale = 1.);
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Cylinder>& cylinders,
+		double scale = 1.);
+	void write_result_mesh(
+		std::string output_file_path,
+		std::vector<Sphere>& spheres,
+		double scale = 1.);
 
 	/* Output the primitives as the points and export to an OBJ file.
 	*/
 	void write_result_points(
 		std::string output_file_path,
 		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves);
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves);
+
 }
 
 #endif

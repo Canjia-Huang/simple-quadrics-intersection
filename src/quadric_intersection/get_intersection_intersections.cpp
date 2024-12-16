@@ -1,6 +1,10 @@
 #include "simple_quadrics_intersection.h"
 #include <unordered_set>
 
+// dont show the VERBOSE info
+#define SQI_VERBOSE_ONLY_TITLE(x)
+#define SQI_VERBOSE_ONLY_COUT(x)
+
 namespace QuadricsIntersection
 {
 	// Point and Point (do not need to do anything)

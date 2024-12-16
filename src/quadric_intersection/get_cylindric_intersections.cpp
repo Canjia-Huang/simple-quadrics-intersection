@@ -1,9 +1,5 @@
 #include "simple_quadrics_intersection.h"
 
-// dont show the VERBOSE info
-#define SQI_VERBOSE_ONLY_TITLE(x)
-#define SQI_VERBOSE_ONLY_COUT(x)
-
 namespace QuadricsIntersection 
 {
 	int get_intersections(
