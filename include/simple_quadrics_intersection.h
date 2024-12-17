@@ -11,7 +11,7 @@
 // Eigen
 #include <Eigen/Dense>
 
-#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+//#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -145,6 +145,16 @@ namespace QuadricsIntersection {
 			u_ = get_perpendicular_normal(nor);
 			v_ = nor.cross(u_).normalized();
 		}
+		Cylinder(Eigen::Vector3d cor, Eigen::Vector3d nor, Eigen::Vector3d u, 
+			double r, double t_lb, double t_ub, double s_lb, double s_ub) {
+			nor.normalize(); u.normalize();
+			cor_ = cor; nor_ = nor;
+			r_ = std::abs(r);
+			u_ = u;
+			v_ = nor.cross(u_).normalized();
+			t_lb_ = t_lb; t_ub_ = t_ub;
+			s_lb_ = s_lb; s_ub_ = s_ub;
+		}
 		Eigen::Vector3d get_point(double s, double t) {
 			double rad_t = ang2rad(t);
 			return cor_ + r_ * (std::cos(rad_t) * u_ + std::sin(rad_t) * v_) + s * nor_;
@@ -164,6 +174,8 @@ namespace QuadricsIntersection {
 				this->nor_ = C.nor_;
 				this->r_ = C.r_;
 				this->u_ = C.u_; this->v_ = C.v_;
+				this->t_lb_ = C.t_lb_; this->t_ub_ = C.t_ub_;
+				this->s_lb_ = C.s_lb_; this->s_ub_ = C.s_ub_;
 			}
 			return *this;
 		}
@@ -179,6 +191,10 @@ namespace QuadricsIntersection {
 		double& r() { return r_; }
 		Eigen::Vector3d& u() { return u_; }
 		Eigen::Vector3d& v() { return v_; }
+		double& t_lb() { return t_lb_; }
+		double& t_ub() { return t_ub_; }
+		double& s_lb() { return s_lb_; }
+		double& s_ub() { return s_ub_; }
 
 		void output_model(
 			std::vector<Eigen::Vector3d>& points,
@@ -189,6 +205,8 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the unit vector of the cylinder's axis
 		double r_; // the radius of the cylinder
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the cylinder's axis, used for parameterization representation
+		double t_lb_ = 0, t_ub_ = 360;
+		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY;
 	};
 
 	/* Parameterization sphere
@@ -391,8 +409,7 @@ namespace QuadricsIntersection {
 			std::vector<double>(1, 0).swap(a_t_);
 			std::vector<double>(3, 0).swap(b_t_);
 			std::vector<double>(6, 0).swap(c_t_);
-			s_lb_ = -SQI_INFTY; s_ub_ = SQI_INFTY;
-			t_lb_ = 0; t_ub_ = 360;
+			// t_lb_ = 0; t_ub_ = 360;
 			s_part_ = 0;
 			C_ = Cylinder();
 		}
@@ -401,6 +418,15 @@ namespace QuadricsIntersection {
 			std::vector<double>().swap(b_t_);
 			std::vector<double>().swap(c_t_);
 		};
+		ParameterizationCylindricCurve(
+			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
+			double t_lb, double t_ub,
+			Cylinder& C
+		) {
+			a_t_ = a_t; b_t_ = b_t; c_t_ = c_t;
+			t_lb_ = t_lb; t_ub_ = t_ub;
+			C_ = C;
+		}
 		ParameterizationCylindricCurve(
 			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
 			double s_lb, double s_ub, double t_lb, double t_ub,
@@ -555,7 +581,7 @@ namespace QuadricsIntersection {
 		std::vector<double> a_t_; // = [0]
 		std::vector<double> b_t_; // = [0] * cos(t) + [1] * sin(t) + [2]
 		std::vector<double> c_t_; // = [0] * cos(t)^2 + [1] * sin(t)^2 + [2] * sin(t) * cos(t) + [3] * cos(t) + [4] * sin(t) + [5]
-		double s_lb_, s_ub_, t_lb_, t_ub_;
+		double s_lb_ = -1, s_ub_ = 1, t_lb_ = 0, t_ub_ = 360;
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
 		Cylinder C_;
 	};
@@ -811,10 +837,12 @@ namespace QuadricsIntersection {
 	*/
 	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves);
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale = 1.);
 	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves);
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale = 1.);
 
 }
 

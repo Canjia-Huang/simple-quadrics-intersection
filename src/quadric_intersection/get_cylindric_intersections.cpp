@@ -6,7 +6,7 @@ namespace QuadricsIntersection
 		Line& L1, Cylinder& C1,
 		std::vector<Point>& points
 	) {
-		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Line and a Cylinder");
+		// SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Line and a Cylinder");
 
 		// init
 		std::vector<Point>().swap(points);
@@ -128,7 +128,7 @@ namespace QuadricsIntersection
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360,
+				0, 360,
 				C1
 			);
 
@@ -265,7 +265,7 @@ namespace QuadricsIntersection
 				// build parameterization curves
 				ParameterizationCylindricCurve PC_C2(
 					a_t, b_t_C2, c_t_C2,
-					-SQI_INFTY, SQI_INFTY, 0, 360,
+					0, 360,
 					C2
 				);
 
@@ -411,7 +411,7 @@ namespace QuadricsIntersection
 			std::vector<double> c_t = { 0, 0, 0, 0, 0, -center_to_axis_dot };
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360,
+				0, 360,
 				C1
 			);
 			curves.push_back(PC);

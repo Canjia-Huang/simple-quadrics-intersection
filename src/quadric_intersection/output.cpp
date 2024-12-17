@@ -4,10 +4,6 @@
 #include <fstream>
 #include <random>
 
-// dont show the VERBOSE info
-#define SQI_VERBOSE_ONLY_TITLE(x)
-#define SQI_VERBOSE_ONLY_COUT(x)
-
 namespace QuadricsIntersection 
 {
 	std::vector<Eigen::Vector3d> rand_color_bar;
@@ -30,8 +26,6 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector3i>& faces,
 		double w, double h
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 		std::vector<Eigen::Vector3i>().swap(faces);
@@ -57,7 +51,6 @@ namespace QuadricsIntersection
 			SQI_VERBOSE_ONLY_WARNING("input seg num is invalid!");
 			return;
 		}
-		// SQI_VERBOSE_ONLY_COUT("");
 
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
@@ -97,7 +90,6 @@ namespace QuadricsIntersection
 			SQI_VERBOSE_ONLY_WARNING("input r_seg num is invalid!");
 			return;
 		}
-		// SQI_VERBOSE_ONLY_COUT("");
 
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
@@ -171,8 +163,6 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector2i>& lines,
 		double l
 	) {
-		SQI_VERBOSE_ONLY_COUT("");
-
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 		std::vector<Eigen::Vector2i>().swap(lines);
@@ -214,26 +204,27 @@ namespace QuadricsIntersection
 		std::vector<Eigen::Vector3d>& points,
 		double t_step
 	) {
-		// SQI_VERBOSE_ONLY_COUT("");
-
 		std::vector<Eigen::Vector3d>().swap(points);
 
-		for (double cur_t = t_lb_ + SQI_EPS; cur_t < t_ub_; cur_t += t_step) {
+		double cur_t_lb = std::max(t_lb_, C_.t_lb());
+		double cur_t_ub = std::min(t_ub_, C_.t_ub());
+
+		for (double cur_t = cur_t_lb + SQI_EPS; cur_t < cur_t_ub; cur_t += t_step) {
 			std::vector<double> ss;
 			get_s(cur_t, ss);
 
 			for (double s : ss) {
-				if (s >= s_lb_ && s <= s_ub_) {
+				if (s >= s_lb_ && s <= s_ub_ && s >= C_.s_lb() && s <= C_.s_ub()) {
 					points.push_back(get_point(s, cur_t));
 				}
 			}
 		}
 
 		std::vector<double> ss;
-		get_s(t_ub_ - SQI_EPS, ss);
+		get_s(cur_t_ub - SQI_EPS, ss);
 		for (double s : ss) {
-			if (s >= s_lb_ && s <= s_ub_) {
-				points.push_back(get_point(s, t_ub_ - SQI_EPS));
+			if (s >= s_lb_ && s <= s_ub_ && s >= C_.s_lb() && s <= C_.s_ub()) {
+				points.push_back(get_point(s, cur_t_ub - SQI_EPS));
 			}
 		}
 	}
@@ -243,6 +234,8 @@ namespace QuadricsIntersection
 		std::vector<Plane>& planes, std::vector<Cylinder>& cylinders, std::vector<Sphere>& spheres,
 		double scale
 	) {
+		SQI_VERBOSE_ONLY_TITLE("outputting result mesh");
+
 		std::ofstream out(output_file_path);
 
 		std::vector<Eigen::Vector3d> points;
@@ -319,8 +312,11 @@ namespace QuadricsIntersection
 
 	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale
 	) {
+		SQI_VERBOSE_ONLY_TITLE("outputting result points");
+
 		int primitive_num = points.size() + lines.size() + circles.size() + curves.size();
 		if (rand_color_bar.size() < primitive_num) {
 			create_rand_color_bar(primitive_num);
@@ -339,7 +335,7 @@ namespace QuadricsIntersection
 			Eigen::Vector3d color = rand_color_bar[color_num++];
 
 			std::vector<Eigen::Vector3d> output_points;
-			L.output_points(output_points);
+			L.output_points(output_points, scale, 200);
 
 			for (Eigen::Vector3d p : output_points) {
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
@@ -371,8 +367,9 @@ namespace QuadricsIntersection
 
 	void write_result_points(
 		std::string output_file_path,
-		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves) {
+		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale) {
 		std::vector<ParameterizationCircle> circles;
-		write_result_points(output_file_path, points, lines, circles, curves);
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
 	}
 }
