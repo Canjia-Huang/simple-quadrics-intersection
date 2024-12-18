@@ -4,11 +4,15 @@ namespace QuadricsIntersection
 {
 	int get_intersections(
 		Plane& P1, Plane& P2,
-		Line& L
+		Line& L,
+		double limit_angle
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Plane and a Plane");
 
-		if (1 - std::abs(P1.nor().dot(P2.nor())) < SQI_EPS) { // parallel
+		double P1_nor_dor_P2_nor = P1.nor().dot(P2.nor());
+		double P1_nor_P2_nor_angle = safetyAcos(P1_nor_dor_P2_nor);
+		
+		if (P1_nor_P2_nor_angle < (limit_angle + SQI_EPS)) { // parallel
 			return 0;
 		}
 
@@ -26,13 +30,14 @@ namespace QuadricsIntersection
 
 	int get_intersections(
 		Plane& P1, Plane& P2,
-		std::vector<Line>& Ls
+		std::vector<Line>& Ls,
+		double limit_angle
 	) {
 		// init
 		std::vector<Line>().swap(Ls);
 
 		Line L;
-		if (get_intersections(P1, P2, L) == 1) Ls.push_back(L);
+		if (get_intersections(P1, P2, L, limit_angle) == 1) Ls.push_back(L);
 
 		return Ls.size();
 	}
@@ -40,9 +45,10 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Cylinder& C1, Plane& P1,
 		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle
 	) {
-		return get_intersections(P1, C1, lines, curves);
+		return get_intersections(P1, C1, lines, curves, limit_angle);
 	}
 
 	int get_intersections(

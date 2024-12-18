@@ -11,7 +11,9 @@
 // Eigen
 #include <Eigen/Dense>
 
-//#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+#define USE_FOR_OFFSET_MESH_GENERATION
+
+#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -133,7 +135,7 @@ namespace QuadricsIntersection {
 
 	/* Parameterization cylinder
 	* C(s, t) = cor + r * (cos(t) * u + sin(t) * v) + s * nor
-	* t = [0, 360], s = [-infty, +infty] */
+	* t = [-180, 180], s = [-infty, +infty] */
 	class Cylinder {
 	public:
 		Cylinder() {};
@@ -166,7 +168,8 @@ namespace QuadricsIntersection {
 			double tu_component = plane_cor_cor.dot(u_);
 			double tv_component = plane_cor_cor.dot(v_);
 			t = safetyAcos(tu_component);
-			if (tv_component < 0) t = 360 - t;
+			// if (tv_component < 0) t = 360 - t; // t = [0, 360]
+			if (tv_component < 0) t = -t; // t = [-180, 180]
 		}
 		Cylinder& operator =(const Cylinder& C) {
 			if (this != &C) {
@@ -178,6 +181,12 @@ namespace QuadricsIntersection {
 				this->s_lb_ = C.s_lb_; this->s_ub_ = C.s_ub_;
 			}
 			return *this;
+		}
+		bool operator ==(const Cylinder& C) {
+			if (this == &C) return true;
+			if ((this->cor_ - C.cor_).squaredNorm() < SQI_EPS &&
+				1 - this->nor_.dot(C.nor_) < SQI_EPS) return true;
+			return false;
 		}
 		bool compare(Cylinder& C) {
 			if (this == &C) return true;
@@ -205,13 +214,13 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the unit vector of the cylinder's axis
 		double r_; // the radius of the cylinder
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the cylinder's axis, used for parameterization representation
-		double t_lb_ = 0, t_ub_ = 360;
+		double t_lb_ = -180, t_ub_ = 180;
 		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY;
 	};
 
 	/* Parameterization sphere
 	* S(s, t) = cor + r * (cos(t) * u + sin(t) * v) * sin(s) + r * cos(s) * nor
-	* t = [0, 360], s = [0, 180] */
+	* t = [-180, 180], s = [0, 180] */
 	class Sphere {
 	public:
 		Sphere() {};
@@ -229,6 +238,14 @@ namespace QuadricsIntersection {
 			u_ = get_perpendicular_normal(nor);
 			v_ = nor.cross(u_).normalized();
 		}
+		Sphere(Eigen::Vector3d cor, Eigen::Vector3d nor, double r, double s_lb, double s_ub) {
+			nor.normalize();
+			cor_ = cor; nor_ = nor;
+			r_ = std::abs(r);
+			u_ = get_perpendicular_normal(nor);
+			v_ = nor.cross(u_).normalized();
+			s_lb_ = s_lb; s_ub_ = s_ub;
+		}
 		Eigen::Vector3d get_point(double s, double t) {
 			double rad_s = ang2rad(s);
 			double rad_t = ang2rad(t);
@@ -241,7 +258,7 @@ namespace QuadricsIntersection {
 			double tu_component = plane_cor_cor.dot(u_);
 			double tv_component = plane_cor_cor.dot(v_);
 			t = safetyAcos(tu_component);
-			if (tv_component < 0) t = 360 - t;
+			if (tv_component < 0) t = -t;
 		}
 
 		Eigen::Vector3d& cor() { return cor_; }
@@ -249,6 +266,8 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d& u() { return u_; }
 		Eigen::Vector3d& v() { return v_; }
 		double& r() { return r_; }
+		double& s_lb() { return s_lb_; }
+		double& s_ub() { return s_ub_; }
 
 		void output_model(
 			std::vector<Eigen::Vector3d>& points,
@@ -259,6 +278,7 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the unit vector of the sphere's axis
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the cylinder's axis, used for parameterization representation
 		double r_; // the radius of the sphere
+		double s_lb_ = 0, s_ub_ = 180;
 	};
 
 	// -----------------------the intersection primitives
@@ -324,19 +344,16 @@ namespace QuadricsIntersection {
 
 	/* Parameterization circle
 	* c(t) = cor_ + r_ * (cos(t) * u_ + sin(t) * v)
-	* t = [t_lb, t_ub] */
+	* t = [-180, 180] */
 	class ParameterizationCircle {
 	public:
-		ParameterizationCircle() {
-			t_lb_ = 0; t_ub_ = 360;
-		};
+		ParameterizationCircle() {};
 		~ParameterizationCircle() {};
 		ParameterizationCircle(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
 			nor.normalize();
 			cor_ = cor; nor_ = nor; r_ = r;
 			u_ = get_perpendicular_normal(nor_);
 			v_ = nor_.cross(u_).normalized();
-			t_lb_ = 0; t_ub_ = 360;
 		}
 		Eigen::Vector3d get_point(double t) {
 			double rad_t = ang2rad(t);
@@ -348,12 +365,10 @@ namespace QuadricsIntersection {
 			double tu_component = center_to_p.dot(u_);
 			double tv_component = center_to_p.dot(v_);
 			double t = safetyAcos(tu_component);
-			if (tv_component < 0) t = 360 - t;
+			if (tv_component < 0) t = -t;
 			return t;
 		}
 		bool is_t_valid(double t) {
-			while (t > 360) t -= 360;
-			while (t < 0) t += 360;
 			if (t > t_lb_ + SQI_EPS && t < t_ub_ - SQI_EPS) return true;
 			return false;
 		}
@@ -397,12 +412,12 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d nor_; // the vector perpendicular to the circle
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the circle's nor_, used for parameterization representation
 		double r_; // circle's radius
-		double t_lb_, t_ub_;
+		double t_lb_ = -180, t_ub_ = 180;
 	};
 
 	/* Parameterization cylinder (of a cylinder)
 	* a(t) * s^2 + b(t) * s + c(t) = 0
-	* t = [t_lb, t_ub], s = [s_lb, s_ub] (also determine by s_part) */
+	* t = [-180, 180], s = [-INFTY, INFTY] (also determine by s_part) */
 	class ParameterizationCylindricCurve {
 	public:
 		ParameterizationCylindricCurve() {
@@ -418,6 +433,13 @@ namespace QuadricsIntersection {
 			std::vector<double>().swap(b_t_);
 			std::vector<double>().swap(c_t_);
 		};
+		ParameterizationCylindricCurve(
+			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
+			Cylinder& C
+		) {
+			a_t_ = a_t; b_t_ = b_t; c_t_ = c_t;
+			C_ = C;
+		}
 		ParameterizationCylindricCurve(
 			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
 			double t_lb, double t_ub,
@@ -525,12 +547,10 @@ namespace QuadricsIntersection {
 			return true;
 		}
 		bool is_t_valid(double t) {
-			// while (t > 360) t -= 360;
 			if (t > t_lb_ - SQI_EPS && t < t_ub_ + SQI_EPS) return true;
 			return false;
 		}
 		bool is_t_strict_valid(double t) {
-			while (t > 360) t -= 360;
 			if (t > t_lb_ + SQI_EPS && t < t_ub_ - SQI_EPS) return true;
 			return false;
 		}
@@ -546,9 +566,13 @@ namespace QuadricsIntersection {
 		bool compare(ParameterizationCylindricCurve& PC) {
 			if (this == &PC) return true;
 
+			double overlap_t_lb = std::max(this->t_lb(), PC.t_lb());
+			double overlap_t_ub = std::min(this->t_ub(), PC.t_ub());
+			if (overlap_t_ub > overlap_t_lb - SQI_EPS) return false;
+
 			for (int i = 0; i < 3; ++i) {
 				double r = double(rand()) / RAND_MAX;
-				double t = 0 + 360 * r;
+				double t = overlap_t_lb + (overlap_t_ub - overlap_t_lb) * r;
 				std::vector<double> ss1, ss2;
 				this->get_s(t, ss1); PC.get_s(t, ss2);
 				if (ss1.size() != 1 || ss2.size() != 1) return false;
@@ -581,7 +605,7 @@ namespace QuadricsIntersection {
 		std::vector<double> a_t_; // = [0]
 		std::vector<double> b_t_; // = [0] * cos(t) + [1] * sin(t) + [2]
 		std::vector<double> c_t_; // = [0] * cos(t)^2 + [1] * sin(t)^2 + [2] * sin(t) * cos(t) + [3] * cos(t) + [4] * sin(t) + [5]
-		double s_lb_ = -1, s_ub_ = 1, t_lb_ = 0, t_ub_ = 360;
+		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY, t_lb_ = -180, t_ub_ = 180;
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
 		Cylinder C_;
 	};
@@ -595,10 +619,12 @@ namespace QuadricsIntersection {
 	*/
 	int get_intersections(
 		Plane& P1, Plane& P2,
-		Line& L);
+		Line& L,
+		double limit_angle = 0.);
 	int get_intersections(
 		Plane& P1, Plane& P2,
-		std::vector<Line>& Ls);
+		std::vector<Line>& Ls,
+		double limit_angle = 0.);
 
 	/* Get the intersecting line between Cylinder C1 and Plane P1.
 	*  Return the number of intersections.
@@ -606,7 +632,8 @@ namespace QuadricsIntersection {
 	int get_intersections(
 		Cylinder& C1, Plane& P1,
 		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves);
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle = 0.);
 
 	/* Get the intersecting line between Sphere S1 and Plane P1.
 	*  Return the number of intersections.
@@ -627,11 +654,13 @@ namespace QuadricsIntersection {
 
 	/* Get the intersections between Plane P1 and Cylinder C1.
 	*  Return the number of intersections.
+	/note: something not done yet!
 	*/
 	int get_intersections(
 		Plane& P1, Cylinder& C1,
 		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves);
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle = 0.);
 
 	/* Get the intersections between Cylinder C1 and Cylinder C2.
 	/note: the result curve are on cylinder C2's parameterization surface
@@ -645,11 +674,13 @@ namespace QuadricsIntersection {
 
 	/* Get the intersections between Sphere S1 and Cylinder C1.
 	*  Return the number of intersections.
+	/note: something not done yet!
 	*/
 	int get_intersections(
 		Sphere& S1, Cylinder& C1,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCylindricCurve>& curves);
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle = 0.);
 
 	// -----------------------about sphere
 

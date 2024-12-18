@@ -338,6 +338,9 @@ namespace QuadricsIntersection
 			L.output_points(output_points, scale, 200);
 
 			for (Eigen::Vector3d p : output_points) {
+#ifdef USE_FOR_OFFSET_MESH_GENERATION
+				if (std::abs(p.x()) > 1 || std::abs(p.y()) > 1 || std::abs(p.z()) > 1) continue;
+#endif
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 		}

@@ -57,7 +57,8 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Plane& P1, Cylinder& C1,
 		std::vector<Line>& lines,
-		std::vector<ParameterizationCylindricCurve>& curves
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Plane and a Cylinder");
 
@@ -84,6 +85,12 @@ namespace QuadricsIntersection
 				Eigen::Vector3d mid_point = C1.cor() - P1_cor_to_C1_cor_dot_P1_nor * P1.nor();
 				double s, t;
 				C1.get_s_t(mid_point, s, t);
+
+#ifdef USE_FOR_OFFSET_MESH_GENERATION
+				if (t + rot_angle > 0 && t - rot_angle < 0) {
+					if (90 - rot_angle < limit_angle + SQI_EPS) return 0;
+				}
+#endif
 
 				Eigen::Vector3d L1_cor = C1.get_point(s, t + rot_angle);
 				Eigen::Vector3d L2_cor = C1.get_point(s, t - rot_angle);
@@ -128,9 +135,9 @@ namespace QuadricsIntersection
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				0, 360,
-				C1
-			);
+				C1);
+
+			// programming for limit_angle ...
 
 			curves.push_back(PC);
 		}
@@ -265,9 +272,7 @@ namespace QuadricsIntersection
 				// build parameterization curves
 				ParameterizationCylindricCurve PC_C2(
 					a_t, b_t_C2, c_t_C2,
-					0, 360,
-					C2
-				);
+					C2);
 
 				// try to cut this parameterization curve
 				if (L1_status == 1 && L2_status == 1) { // two tangent: result two ellipse
@@ -334,24 +339,24 @@ namespace QuadricsIntersection
 					ParameterizationCylindricCurve PC_C2_mid; // [lb, center]
 					PC_C2.separate_t(PC_C2_mid, 0.5 * (PC_C2.t_lb() + PC_C2.t_ub())); // PC_C2 [center, ub]
 
-					// all set to [0, 360]
-					if (PC_C2.t_lb() > 360) {
+					// all set to [-180, 180]
+					if (PC_C2.t_lb() > 180) {
 						PC_C2.t_lb() -= 360; PC_C2.t_ub() -= 360;
 					}
-					else if (PC_C2.t_ub() > 360) { // cut to [lb, 360] and [0, ub - 360]
+					else if (PC_C2.t_ub() > 180) { // cut to [lb, 180] and [-180, ub - 360]
 						ParameterizationCylindricCurve PC_C2_1 = PC_C2;
-						PC_C2.t_ub() = 360;
-						PC_C2_1.t_lb() = 0; PC_C2_1.t_ub() -= 360;
+						PC_C2.t_ub() = 180;
+						PC_C2_1.t_lb() = -180; PC_C2_1.t_ub() -= 360;
 						curves.push_back(PC_C2_1);
 					}
 
-					if (PC_C2_mid.t_lb() > 360) {
+					if (PC_C2_mid.t_lb() > 180) {
 						PC_C2_mid.t_lb() -= 360; PC_C2_mid.t_ub() -= 360;
 					}
-					else if (PC_C2_mid.t_ub() > 360) { // cut to [lb, 360] and [0, ub - 360]
+					else if (PC_C2_mid.t_ub() > 180) { // cut to [lb, 180] and [-180, ub - 360]
 						ParameterizationCylindricCurve PC_C2_mid_1 = PC_C2_mid;
-						PC_C2_mid.t_ub() = 360;
-						PC_C2_mid_1.t_lb() = 0; PC_C2_mid_1.t_ub() -= 360;
+						PC_C2_mid.t_ub() = 180;
+						PC_C2_mid_1.t_lb() = -180; PC_C2_mid_1.t_ub() -= 360;
 						curves.push_back(PC_C2_mid_1);
 					}
 					curves.push_back(PC_C2_mid);
@@ -378,7 +383,8 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Sphere& S1, Cylinder& C1,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCylindricCurve>& curves
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double limit_angle
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Sphere and a Cylinder");
 
@@ -406,14 +412,14 @@ namespace QuadricsIntersection
 		else if (center_to_axis_sq_dis < SQI_EPS) { // overlap: result a circle
 			SQI_VERBOSE_ONLY_COUT("overlap");
 
+			if (limit_angle > SQI_EPS) return 0;
+
 			std::vector<double> a_t = { 0 };
 			std::vector<double> b_t = { 0, 0, 1 };
 			std::vector<double> c_t = { 0, 0, 0, 0, 0, -center_to_axis_dot };
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				0, 360,
-				C1
-			);
+				C1);
 			curves.push_back(PC);
 		}
 		else { // intersect: result a parameterization curve
@@ -445,9 +451,9 @@ namespace QuadricsIntersection
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
-				-SQI_INFTY, SQI_INFTY, 0, 360,
-				C1
-			);
+				C1);
+
+			// limit_angle need further program...
 
 			// try to cut this parameterization curves
 			double s, t;
@@ -458,7 +464,7 @@ namespace QuadricsIntersection
 			double t1 = t - rot_angle;
 			double t2 = t + rot_angle;
 
-			if (t1 < 0) { // divide to [0, t2] and [t1 + 360, 360]
+			if (t1 < -180) { // divide to [-180, t2] and [t1 + 360, 180]
 				ParameterizationCylindricCurve PC_tmp1, PC_tmp2;
 				if (PC.separate_t(PC_tmp1, t2) == 1) {
 					ParameterizationCylindricCurve PC_tmp1_s;
@@ -471,7 +477,7 @@ namespace QuadricsIntersection
 					curves.push_back(PC); curves.push_back(PC_s);
 				}
 			}
-			else if (t2 > 360) { // divide to [t1, 360] and [0, t2-360]
+			else if (t2 > 180) { // divide to [t1, 180] and [-180, t2-360]
 				ParameterizationCylindricCurve PC_tmp1, PC_tmp2;
 				if (PC.separate_t(PC_tmp2, t2 - 360) == 1) {
 					ParameterizationCylindricCurve PC_tmp2_s;
