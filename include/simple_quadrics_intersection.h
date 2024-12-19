@@ -120,6 +120,13 @@ namespace QuadricsIntersection {
 			nor.normalize();
 			cor_ = cor; nor_ = nor;
 		}
+		Plane& operator =(const Plane& P) {
+			if (this != &P) {
+				this->cor_ = P.cor_;
+				this->nor_ = P.nor_;
+			}
+			return *this;
+		}
 
 		Eigen::Vector3d& cor() { return cor_; }
 		Eigen::Vector3d& nor() { return nor_; }
@@ -641,7 +648,8 @@ namespace QuadricsIntersection {
 	int get_intersections(
 		Sphere& S1, Plane& P1,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles);
+		std::vector<ParameterizationCircle>& circles,
+		double limit_angle = 0.);
 
 	// -----------------------about cylinder
 
@@ -690,7 +698,8 @@ namespace QuadricsIntersection {
 	int get_intersections(
 		Plane& P1, Sphere& S1,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles);
+		std::vector<ParameterizationCircle>& circles,
+		double limit_angle = 0.);
 
 	/* Get the intersections between Cylinder C1 and Sphere S1.
 	*  Return the number of intersections.
@@ -706,7 +715,8 @@ namespace QuadricsIntersection {
 	int get_intersections(
 		Sphere& S1, Sphere& S2,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles);
+		std::vector<ParameterizationCircle>& circles,
+		double limit_angle = 0.);
 
 	// -----------------------assessment of the intersections between primitives' intersections
 
@@ -873,6 +883,10 @@ namespace QuadricsIntersection {
 	void write_result_points(
 		std::string output_file_path,
 		std::vector<Point>& points, std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale = 1.);
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
 		double scale = 1.);
 
 }

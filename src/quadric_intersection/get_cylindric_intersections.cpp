@@ -85,12 +85,11 @@ namespace QuadricsIntersection
 				Eigen::Vector3d mid_point = C1.cor() - P1_cor_to_C1_cor_dot_P1_nor * P1.nor();
 				double s, t;
 				C1.get_s_t(mid_point, s, t);
-
-#ifdef USE_FOR_OFFSET_MESH_GENERATION
-				if (t + rot_angle > 0 && t - rot_angle < 0) {
-					if (90 - rot_angle < limit_angle + SQI_EPS) return 0;
+				
+				// check limit angle
+				if (limit_angle > SQI_EPS) {
+					if (rot_angle < (limit_angle + SQI_EPS)) return 0;
 				}
-#endif
 
 				Eigen::Vector3d L1_cor = C1.get_point(s, t + rot_angle);
 				Eigen::Vector3d L2_cor = C1.get_point(s, t - rot_angle);
@@ -137,9 +136,78 @@ namespace QuadricsIntersection
 				a_t, b_t, c_t,
 				C1);
 
-			// programming for limit_angle ...
+			// check limit angle
+			if (limit_angle > SQI_EPS) {
+				double cos_limit_angle = std::cos(ang2rad(limit_angle));
+				SQI_VERBOSE_ONLY_TEST("cos limit angle:" << cos_limit_angle);
 
-			curves.push_back(PC);
+				// project P1_nor to u-v-axes
+				Eigen::Vector3d P1_nor_proj = P1.nor() - P1.nor().dot(C1.nor()) * C1.nor();
+				P1_nor_proj.normalize();
+				double P1_nor_u_component = P1_nor_proj.dot(C1.u());
+				double P1_nor_v_component = P1_nor_proj.dot(C1.v());
+				double P1_nor_proj_t = safetyAcos(P1_nor_u_component);
+				if (P1_nor_v_component < 0) P1_nor_proj_t = -P1_nor_proj_t;
+				double P1_nor_proj_nt = (P1_nor_proj_t > 0) ? (P1_nor_proj_t - 180) : (P1_nor_proj_t + 180);
+
+				double a = P1_nor_u_component * P1_nor_u_component + P1_nor_v_component * P1_nor_v_component;
+				double b = -2 * cos_limit_angle * P1_nor_u_component;
+				double c = cos_limit_angle * cos_limit_angle - P1_nor_v_component * P1_nor_v_component;
+				double delta = b * b - 4 * a * c;
+				if (delta < -SQI_EPS) {
+					// do nothing
+				}
+				else if (delta < SQI_EPS) {
+					// do nothing
+				}
+				else {
+					double sqrt_delta = std::sqrt(delta);
+					double res_x1 = (-b - sqrt_delta) / (2 * a);
+					if (std::abs(P1_nor_u_component * res_x1 + P1_nor_v_component * std::sqrt(1 - res_x1 * res_x1) - cos_limit_angle) > SQI_EPS) {
+						res_x1 = (-b + sqrt_delta) / (2 * a);
+					}
+					double cut_t11 = safetyAcos(res_x1);
+					double cut_t12 = 2 * P1_nor_proj_t - cut_t11;
+					std::vector<double> cut_ts = { cut_t11, cut_t12, cut_t11 + 180, cut_t12 + 180 };
+					for (int i = 0, i_end = cut_ts.size(); i < i_end; ++i) {
+						while (cut_ts[i] > 180) cut_ts[i] -= 360;
+						while (cut_ts[i] < -180) cut_ts[i] += 360;
+					}
+					std::sort(cut_ts.begin(), cut_ts.end());
+
+					// cut the curve
+					bool origin_loop = false;
+					if (std::abs(PC.t_ub() - PC.t_lb() - 360) < SQI_EPS) {
+						origin_loop = true;
+					}
+
+					bool first_end_cut = false;
+					for (int i = 0, i_end = cut_ts.size(); i < i_end; ++i) {
+						ParameterizationCylindricCurve sub_PC;
+						if (PC.separate_t(sub_PC, cut_ts[i]) == 1) {
+							if ((sub_PC.t_lb() < P1_nor_proj_t && sub_PC.t_ub() > P1_nor_proj_t) || 
+								(sub_PC.t_lb() < P1_nor_proj_nt && sub_PC.t_ub() > P1_nor_proj_nt)) {
+								// do nothing
+								if (i == 0) first_end_cut = true;
+							}
+							else {
+								curves.push_back(sub_PC);
+							}
+						}
+					}
+					
+					if (first_end_cut && origin_loop) {
+						// do nothing
+					}
+					else {
+						curves.push_back(PC);
+					}
+				}
+			}
+			else {
+				curves.push_back(PC);
+			}
+
 		}
 
 		return lines.size() + curves.size();

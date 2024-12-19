@@ -375,4 +375,13 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCircle> circles;
 		write_result_points(output_file_path, points, lines, circles, curves, scale);
 	}
+
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale) {
+		std::vector<Point> points;
+		std::vector<ParameterizationCircle> circles;
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
+	}
 }

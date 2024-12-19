@@ -5,7 +5,8 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Plane& P1, Sphere& S1,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles
+		std::vector<ParameterizationCircle>& circles,
+		double limit_angle
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Plane and a Sphere");
 
@@ -34,6 +35,13 @@ namespace QuadricsIntersection
 				if (P1_S1_cor_dot_P1_nor < 0) circle_nor = -circle_nor;
 				double circle_r = std::sqrt(S1.r() * S1.r() - P1_S1_cor_dis * P1_S1_cor_dis);
 
+				// check limit angle
+				if (limit_angle > SQI_EPS) {
+					double angle = safetyAcos(std::abs(P1_S1_cor_dis) / S1.r());
+					if (angle < (limit_angle + SQI_EPS) ||
+						angle > (180 - limit_angle - SQI_EPS)) return 0;
+				}
+
 				circles.push_back(ParameterizationCircle(circle_center, -P1.nor(), circle_r));
 			}
 		}
@@ -52,7 +60,8 @@ namespace QuadricsIntersection
 	int get_intersections(
 		Sphere& S1, Sphere& S2,
 		std::vector<Point>& points,
-		std::vector<ParameterizationCircle>& circles
+		std::vector<ParameterizationCircle>& circles,
+		double limit_angle
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Sphere and a Sphere");
 
@@ -82,6 +91,14 @@ namespace QuadricsIntersection
 
 				Eigen::Vector3d circle_center = S2.cor() + 0.5 * S2_cor_to_S1_cor;
 				double circle_r = std::sqrt(S2.r() * S2.r() - 0.25 * centers_dis * centers_dis);
+
+				// check limit angle
+				if (limit_angle > SQI_EPS) {
+					double angle = safetyAcos(0.5 * centers_dis / S2.r());
+					double two_nor_angle = 180 - 2 * angle;
+					if (two_nor_angle < (limit_angle + SQI_EPS) ||
+						two_nor_angle > (180 - limit_angle - SQI_EPS)) return 0;
+				}
 
 				circles.push_back(
 					ParameterizationCircle(circle_center, S2_cor_to_S1_cor_unit, circle_r));
