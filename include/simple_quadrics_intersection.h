@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -294,13 +294,22 @@ namespace QuadricsIntersection {
 	public:
 		Point() {};
 		~Point() {};
+		Point(const Point& P) {
+			this->cor_ = P.cor_;
+			this->ids = P.ids;
+		}
 		Point(Eigen::Vector3d cor) {
 			cor_ = cor;
 		}
 
+		/* if this point is eliminated, return false */
+		bool limited_by(Cylinder& C);
+
 		Eigen::Vector3d& cor() { return cor_; }
 	private:
 		Eigen::Vector3d cor_;
+	public: // free to use for any purpose
+		std::pair<int, int> ids = std::make_pair<int, int>(-1, -1);
 	};
 
 	class Line {
@@ -308,10 +317,15 @@ namespace QuadricsIntersection {
 	public:
 		Line() {};
 		~Line() {};
+		Line(const Line& L) {
+			this->cor_ = L.cor_;
+			this->nor_ = L.nor_;
+			this->s_lb_ = L.s_lb_; this->s_ub_ = L.s_ub_;
+			this->ids = L.ids;
+		}
 		Line(Eigen::Vector3d cor, Eigen::Vector3d nor) {
 			nor.normalize();
 			cor_ = cor; nor_ = nor;
-			s_lb_ = -SQI_INFTY; s_ub_ = SQI_INFTY;
 		}
 		Eigen::Vector3d get_point(double s) {
 			return cor_ + s * nor_;
@@ -331,6 +345,9 @@ namespace QuadricsIntersection {
 			return 1;
 		}
 
+		/* if this line is eliminated, return false, else cut this line */
+		bool limited_by(Cylinder& C);
+
 		Eigen::Vector3d& cor() { return cor_; }
 		Eigen::Vector3d& nor() { return nor_; }
 		double& s_lb() { return s_lb_; }
@@ -346,7 +363,9 @@ namespace QuadricsIntersection {
 	private:
 		Eigen::Vector3d cor_; // a point at the line
 		Eigen::Vector3d nor_; // the vector of the line
-		double s_lb_, s_ub_;
+		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY;
+	public: // free to use for any purpose
+		std::pair<int, int> ids = std::make_pair<int, int>(-1, -1);
 	};
 
 	/* Parameterization circle
@@ -356,6 +375,13 @@ namespace QuadricsIntersection {
 	public:
 		ParameterizationCircle() {};
 		~ParameterizationCircle() {};
+		ParameterizationCircle(const ParameterizationCircle& c) {
+			this->cor_ = c.cor_; this->nor_ = c.nor_;
+			this->u_ = c.u_; this->v_ = c.v_;
+			this->r_ = c.r_;
+			this->t_lb_ = c.t_lb_; this->t_ub_ = c.t_ub_;
+			this->ids = c.ids;
+		}
 		ParameterizationCircle(Eigen::Vector3d cor, Eigen::Vector3d nor, double r) {
 			nor.normalize();
 			cor_ = cor; nor_ = nor; r_ = r;
@@ -420,6 +446,8 @@ namespace QuadricsIntersection {
 		Eigen::Vector3d u_, v_; // the coordinate axes of the plane which perpendicular to the circle's nor_, used for parameterization representation
 		double r_; // circle's radius
 		double t_lb_ = -180, t_ub_ = 180;
+	public: // free to use for any purpose
+		std::pair<int, int> ids = std::make_pair<int, int>(-1, -1);
 	};
 
 	/* Parameterization cylinder (of a cylinder)
@@ -484,6 +512,7 @@ namespace QuadricsIntersection {
 			this->s_lb_ = PC.s_lb_; this->s_ub_ = PC.s_ub_; this->t_lb_ = PC.t_lb_; this->t_ub_ = PC.t_ub_;
 			this->s_part_ = PC.s_part_;
 			this->C_ = PC.C_;
+			this->ids = PC.ids;
 		}
 		ParameterizationCylindricCurve& operator =(const ParameterizationCylindricCurve& PC) {
 			if (this != &PC) {
@@ -493,6 +522,7 @@ namespace QuadricsIntersection {
 				this->s_lb_ = PC.s_lb_; this->s_ub_ = PC.s_ub_; this->t_lb_ = PC.t_lb_; this->t_ub_ = PC.t_ub_;
 				this->s_part_ = PC.s_part_;
 				this->C_ = PC.C_;
+				this->ids = PC.ids;
 			}
 			return *this;
 		}
@@ -598,6 +628,9 @@ namespace QuadricsIntersection {
 		int& s_part() { return s_part_; }
 		Cylinder& C() { return C_; }
 
+		/* if this curve is eliminated, return false, else cut this curve */
+		bool limited_by(Cylinder& C);
+
 		void verbose() {
 			SQI_VERBOSE_ONLY_COUT("a_t_:" << " " << a_t_[0]);
 			SQI_VERBOSE_ONLY_COUT("b_t_:" << " " << b_t_[0] << " " << b_t_[1] << " " << b_t_[2]);
@@ -615,6 +648,8 @@ namespace QuadricsIntersection {
 		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY, t_lb_ = -180, t_ub_ = 180;
 		int s_part_; // decide which part of the curve is need, 0: all, 1: upper, -1: lower
 		Cylinder C_;
+	public: // free to use for any purpose
+		std::pair<int, int> ids = std::make_pair<int, int>(-1, -1);
 	};
 
 	// -----------------------assessment of the intersections between primitives
@@ -716,6 +751,49 @@ namespace QuadricsIntersection {
 		Sphere& S1, Sphere& S2,
 		std::vector<Point>& points,
 		std::vector<ParameterizationCircle>& circles,
+		double limit_angle = 0.);
+
+	// -----------------------unified format
+
+	int get_intersections(
+		Plane& P1, Plane& P2,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+	int get_intersections(
+		Cylinder& C1, Plane& P1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+	int get_intersections(
+		Sphere& S1, Plane& P1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+
+	int get_intersections(
+		Plane& P1, Cylinder& C1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+	int get_intersections(
+		Cylinder& C1, Cylinder& C2,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.
+		);
+	int get_intersections(
+		Sphere& S1, Cylinder& C1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+
+	int get_intersections(
+		Plane& P1, Sphere& S1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.);
+	int get_intersections(
+		Cylinder& C1, Sphere& S1,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
+		double limit_angle = 0.
+		);
+	int get_intersections(
+		Sphere& S1, Sphere& S2,
+		std::vector<Point>& Ps, std::vector<Line>& Ls, std::vector<ParameterizationCircle>& cs, std::vector<ParameterizationCylindricCurve>& Cs,
 		double limit_angle = 0.);
 
 	// -----------------------assessment of the intersections between primitives' intersections

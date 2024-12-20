@@ -185,8 +185,9 @@ namespace QuadricsIntersection
 					for (int i = 0, i_end = cut_ts.size(); i < i_end; ++i) {
 						ParameterizationCylindricCurve sub_PC;
 						if (PC.separate_t(sub_PC, cut_ts[i]) == 1) {
-							if ((sub_PC.t_lb() < P1_nor_proj_t && sub_PC.t_ub() > P1_nor_proj_t) || 
-								(sub_PC.t_lb() < P1_nor_proj_nt && sub_PC.t_ub() > P1_nor_proj_nt)) {
+							if ((sub_PC.t_lb() < P1_nor_proj_t && sub_PC.t_ub() > P1_nor_proj_t)
+								|| (sub_PC.t_lb() < P1_nor_proj_nt && sub_PC.t_ub() > P1_nor_proj_nt) // dont preserve sharp features
+								) {
 								// do nothing
 								if (i == 0) first_end_cut = true;
 							}
@@ -258,15 +259,22 @@ namespace QuadricsIntersection
 				Eigen::Vector3d intersect_point1 = center_p + move_dis * perpendicular_v;
 				Eigen::Vector3d intersect_point2 = center_p - move_dis * perpendicular_v;
 
-				lines.push_back(Line(intersect_point1, C1.nor()));
-				lines.push_back(Line(intersect_point2, C1.nor()));
+				Line L1(intersect_point1, C1.nor());
+				Line L2(intersect_point2, C1.nor());
+
+				if (L1.limited_by(C1) && L1.limited_by(C2)) lines.push_back(L1);
+				if (L2.limited_by(C1) && L2.limited_by(C2)) lines.push_back(L2);
+				// lines.push_back(Line(intersect_point1, C1.nor()));
+				// lines.push_back(Line(intersect_point2, C1.nor()));
 			}
 			else { // tangent, result 1 line
 				SQI_VERBOSE_ONLY_COUT("tangent");
 
 				Eigen::Vector3d intersect_point = 0.5 * (C1.cor() + C2.cor());
 
-				lines.push_back(Line(intersect_point, C1.nor()));
+				Line L(intersect_point, C1.nor());
+				if (L.limited_by(C1) && L.limited_by(C2)) lines.push_back(L);
+				// lines.push_back(Line(intersect_point, C1.nor()));
 			}
 		}
 		else { // 2 axes are not parallel
@@ -296,10 +304,14 @@ namespace QuadricsIntersection
 			int L2_status = get_intersections(L2, C2, L2_C2_intersect_points); // the number of intersect points
 
 			if (L1_status == 1 && L2_status == 0) { // tangent + do not intersect: result a point
-				points.push_back(L1_C2_intersect_points[0]);
+				if (L1_C2_intersect_points[0].limited_by(C1) && L1_C2_intersect_points[0].limited_by(C2)) {
+					points.push_back(L1_C2_intersect_points[0]);
+				}
 			}
 			else if (L1_status == 0 && L2_status == 1) { // do not intersect + tangent: result a point
-				points.push_back(L2_C2_intersect_points[0]);
+				if (L2_C2_intersect_points[0].limited_by(C1) && L2_C2_intersect_points[0].limited_by(C2)) {
+					points.push_back(L2_C2_intersect_points[0]);
+				}
 			}
 			else { // may result parameterization curves
 
@@ -308,7 +320,7 @@ namespace QuadricsIntersection
 				std::vector<double> a_t = {
 					1 - C1_nor_dot_C2_nor * C1_nor_dot_C2_nor
 				};
-				SQI_VERBOSE_ONLY_COUT("a_t:" << " " << a_t[0]);
+				// SQI_VERBOSE_ONLY_COUT("a_t:" << " " << a_t[0]);
 
 				// compute b_t
 				Eigen::Vector3d b_tmp = 2 * (C2.nor() - C1_nor_dot_C2_nor * C1.nor());
@@ -318,7 +330,7 @@ namespace QuadricsIntersection
 					C2.r() * b_tmp.dot(C2.v()),
 					b_tmp.dot(C2_cor_C1_cor)
 				};
-				SQI_VERBOSE_ONLY_COUT("b_t:" << " " << b_t_C2[0] << " " << b_t_C2[1] << " " << b_t_C2[2]);
+				// SQI_VERBOSE_ONLY_COUT("b_t:" << " " << b_t_C2[0] << " " << b_t_C2[1] << " " << b_t_C2[2]);
 
 				//compute c_t
 				double C2_sq_r = C2.r() * C2.r();
@@ -335,12 +347,13 @@ namespace QuadricsIntersection
 					2 * C2.r() * (C2_nor_C1_nor_dot_C2_v - C2_nor_C1_nor_dot_C1_nor * C2_v_dot_C1_nor),
 					C2_cor_C1_cor.dot(C2_cor_C1_cor) - C2_nor_C1_nor_dot_C1_nor * C2_nor_C1_nor_dot_C1_nor - C1.r() * C1.r()
 				};
-				SQI_VERBOSE_ONLY_COUT("c_t:" << " " << c_t_C2[0] << " " << c_t_C2[1] << " " << c_t_C2[2] << " " << c_t_C2[3] << " " << c_t_C2[4] << " " << c_t_C2[5]);
+				// SQI_VERBOSE_ONLY_COUT("c_t:" << " " << c_t_C2[0] << " " << c_t_C2[1] << " " << c_t_C2[2] << " " << c_t_C2[3] << " " << c_t_C2[4] << " " << c_t_C2[5]);
 
 				// build parameterization curves
 				ParameterizationCylindricCurve PC_C2(
 					a_t, b_t_C2, c_t_C2,
 					C2);
+
 
 				// try to cut this parameterization curve
 				if (L1_status == 1 && L2_status == 1) { // two tangent: result two ellipse
@@ -438,6 +451,13 @@ namespace QuadricsIntersection
 					ParameterizationCylindricCurve PC_s;
 					PC_C2.separate_s(PC_s);
 					curves.push_back(PC_C2); curves.push_back(PC_s);
+
+					// limited by cylinders
+					std::vector<ParameterizationCylindricCurve> tmp_curves;
+					for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+						if (curves[i].limited_by(C1) && curves[i].limited_by(C2)) tmp_curves.push_back(curves[i]);
+					}
+					tmp_curves.swap(curves);
 				}
 				else {
 					SQI_VERBOSE_ONLY_COUT("may error?");

@@ -1005,7 +1005,7 @@ namespace QuadricsIntersection
 		Cylinder* C1 = &(PC1s[0].C());
 		Cylinder* C2 = &(PC2s[0].C());
 
-		if (1 || C1->compare(*C2) == true) { // on the same cylinder
+		if (C1->compare(*C2) == true) { // on the same cylinder
 			std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
 			for (int i = 0; i < PC1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 				for (int j = 0, j_end = PC2s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.

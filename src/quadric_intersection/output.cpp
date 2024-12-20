@@ -58,15 +58,20 @@ namespace QuadricsIntersection
 		points.reserve(seg * 2);
 		faces.reserve(seg * 2);
 
-		double rot_angle = 360. / seg;
-		for (int i = 0; i < seg; ++i) {
-			Eigen::Vector3d ru = slerp(u_, nor_, i * rot_angle);
-			points.push_back(cor_ - 0.5 * h * nor_ + r_ * ru);
-			points.push_back(cor_ + 0.5 * h * nor_ + r_ * ru);
+		double rot_angle = (t_ub_ - t_lb_) / seg;
+		double lower_h = (s_lb_ < -0.5 * SQI_INFTY) ? -0.5 * h : s_lb_;
+		double upper_h = (s_ub_ > 0.5 * SQI_INFTY) ? 0.5 * h : s_ub_;
+		for (int i = 0; i < seg + 1; ++i) {
+			// Eigen::Vector3d ru = slerp(u_, nor_, i * rot_angle);
+			double angle = t_lb_ + i * rot_angle;
+			Eigen::Vector3d ru = u_ * std::cos(ang2rad(angle)) + v_ * std::sin(ang2rad(angle));
+			points.push_back(cor_ + lower_h * nor_ + r_ * ru);
+			points.push_back(cor_ + upper_h * nor_ + r_ * ru);
 		}
 		for (int i = 0; i < seg; ++i) {
 			int ri = 2 * i;
-			if (i == seg - 1) {
+
+			if (std::abs(t_ub_ - t_lb_ - 360) < SQI_EPS && i == seg - 1) {
 				faces.push_back(Eigen::Vector3i(ri, 0, ri + 1));
 				faces.push_back(Eigen::Vector3i(ri + 1, 0, 1));
 			}
@@ -206,8 +211,8 @@ namespace QuadricsIntersection
 	) {
 		std::vector<Eigen::Vector3d>().swap(points);
 
-		double cur_t_lb = std::max(t_lb_, C_.t_lb());
-		double cur_t_ub = std::min(t_ub_, C_.t_ub());
+		double cur_t_lb = t_lb_;// std::max(t_lb_, C_.t_lb());
+		double cur_t_ub = t_ub_;// std::min(t_ub_, C_.t_ub());
 
 		for (double cur_t = cur_t_lb + SQI_EPS; cur_t < cur_t_ub; cur_t += t_step) {
 			std::vector<double> ss;
@@ -236,16 +241,23 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("outputting result mesh");
 
+		int primitive_num = planes.size() + cylinders.size() + spheres.size();
+		if (rand_color_bar.size() < primitive_num) {
+			create_rand_color_bar(primitive_num);
+		}
+		int color_num = 0;
+
 		std::ofstream out(output_file_path);
 
 		std::vector<Eigen::Vector3d> points;
 		std::vector<Eigen::Vector3i> faces;
 		int total_points_nb = 0;
 		for (Plane P : planes) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
 			P.output_model(points, faces, scale, scale);
 
 			for (Eigen::Vector3d p : points) {
-				out << "v" << " " << p.transpose() << std::endl;
+				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 			for (Eigen::Vector3i f : faces) {
 				out << "f" << " " << (f + Eigen::Vector3i(total_points_nb + 1, total_points_nb + 1, total_points_nb + 1)).transpose() << std::endl;
@@ -253,10 +265,11 @@ namespace QuadricsIntersection
 			total_points_nb += points.size();
 		}
 		for (Cylinder C : cylinders) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
 			C.output_model(points, faces, 32, 2 * scale);
 
 			for (Eigen::Vector3d p : points) {
-				out << "v" << " " << p.transpose() << std::endl;
+				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 			for (Eigen::Vector3i f : faces) {
 				out << "f" << " " << (f + Eigen::Vector3i(total_points_nb + 1, total_points_nb + 1, total_points_nb + 1)).transpose() << std::endl;
@@ -264,10 +277,11 @@ namespace QuadricsIntersection
 			total_points_nb += points.size();
 		}
 		for (Sphere S : spheres) {
+			Eigen::Vector3d color = rand_color_bar[color_num++];
 			S.output_model(points, faces);
 
 			for (Eigen::Vector3d p : points) {
-				out << "v" << " " << p.transpose() << std::endl;
+				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
 			for (Eigen::Vector3i f : faces) {
 				out << "f" << " " << (f + Eigen::Vector3i(total_points_nb + 1, total_points_nb + 1, total_points_nb + 1)).transpose() << std::endl;
