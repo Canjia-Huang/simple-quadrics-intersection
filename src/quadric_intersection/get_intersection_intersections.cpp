@@ -198,8 +198,28 @@ namespace QuadricsIntersection
 		}
 		else {
 			if (1 - std::abs(L2.nor().dot(L1.nor())) < SQI_EPS) { // two lines are parallel
-				SQI_VERBOSE_ONLY_COUT("may error");
-				// do nothing
+				/*
+				// check if have union region
+				Eigen::Vector3d L2_s_lb = L2.get_point(L2.s_lb());
+				Eigen::Vector3d L2_s_ub = L2.get_point(L2.s_ub());
+				double L2_s_lb_L1_s = L1.get_s(L2_s_lb);
+				double L2_s_ub_L1_s = L1.get_s(L2_s_ub);
+				if (L2_s_lb_L1_s > L2_s_ub_L1_s) { // sort to L2_s_lb_L1_s < L2_s_ub_L1_s
+					double tmp_s = L2_s_lb_L1_s;
+					L2_s_lb_L1_s = L2_s_ub_L1_s; L2_s_ub_L1_s = tmp_s;
+				}
+
+				if (L2_s_ub_L1_s < L1.s_lb() || L2_s_lb_L1_s > L1.s_ub()) { // s region not overlap
+					// do nothing
+				}
+				else { // merge two lines
+					double max_s = std::max(L1.s_ub(), L2_s_ub_L1_s);
+					double min_s = std::min(L1.s_lb(), L2_s_lb_L1_s);
+					double mid_s = 0.5 * (max_s + min_s);
+					L2.cor() = L1.cor(); L2.nor() = L1.nor();
+					L1.s_lb() = mid_s; L1.s_ub() = max_s;
+					L2.s_lb() = min_s; L2.s_ub() = mid_s;
+				}*/
 			}
 			else { // intersect a point
 				Eigen::Vector3d L2_cor_to_L1_cor = L1.cor() - L2.cor();

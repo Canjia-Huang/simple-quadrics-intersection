@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+//#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -138,6 +138,8 @@ namespace QuadricsIntersection {
 	private:
 		Eigen::Vector3d cor_; // a point on the plane
 		Eigen::Vector3d nor_; // the unit normal of the plane
+	public: // free to use for any purpose
+		std::vector<Eigen::Vector3d> vertices;
 	};
 
 	/* Parameterization cylinder
@@ -579,6 +581,8 @@ namespace QuadricsIntersection {
 
 			return s.size();
 		}
+		int get_t(double s, double& t);
+		int get_t(Cylinder& C, double s, double& t);
 		bool is_valid() {
 			if (a_t_.size() != 1 || b_t_.size() != 3 || c_t_.size() != 6)	return false;
 			return true;
@@ -629,7 +633,8 @@ namespace QuadricsIntersection {
 		Cylinder& C() { return C_; }
 
 		/* if this curve is eliminated, return false, else cut this curve */
-		bool limited_by(Cylinder& C);
+		bool limited_by(); // limit by self cylinder
+		bool limited_by(Cylinder& C, std::vector<ParameterizationCylindricCurve>& sub_PCs);
 
 		void verbose() {
 			SQI_VERBOSE_ONLY_COUT("a_t_:" << " " << a_t_[0]);
@@ -964,7 +969,19 @@ namespace QuadricsIntersection {
 		double scale = 1.);
 	void write_result_points(
 		std::string output_file_path,
+		std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale = 1.);
+	void write_result_points(
+		std::string output_file_path,
 		std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale = 1.);
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Line>& lines,
+		double scale = 1.);
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<ParameterizationCylindricCurve>& curves,
 		double scale = 1.);
 
 }

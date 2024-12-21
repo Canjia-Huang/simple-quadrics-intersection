@@ -186,11 +186,14 @@ namespace QuadricsIntersection
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 
-		double l_step = l / seg;
-		for (double cur_l = std::max(-0.5 * l, s_lb_), cur_l_end = std::min(0.5 * l, s_ub_); cur_l < cur_l_end; cur_l += l_step) {
-			points.push_back(get_point(cur_l));
+		double s_lb = (s_lb_ < -0.5 * SQI_INFTY) ? -0.5 * l : s_lb_;
+		double s_ub = (s_ub_ > 0.5 * SQI_INFTY) ? 0.5 * l : s_ub_;
+
+		double l_step = (s_ub - s_lb) / seg;
+		for (double cur_s = s_lb; cur_s < s_ub; cur_s += l_step) {
+			points.push_back(get_point(cur_s));
 		}
-		points.push_back(get_point(std::min(0.5 * l, s_ub_)));
+		points.push_back(get_point(s_ub));
 	}
 
 	void ParameterizationCircle::output_points(
@@ -219,7 +222,9 @@ namespace QuadricsIntersection
 			get_s(cur_t, ss);
 
 			for (double s : ss) {
-				if (s >= s_lb_ && s <= s_ub_ && s >= C_.s_lb() && s <= C_.s_ub()) {
+				if (s >= s_lb_ && s <= s_ub_ 
+					// && s >= C_.s_lb() && s <= C_.s_ub()
+					) {
 					points.push_back(get_point(s, cur_t));
 				}
 			}
@@ -228,7 +233,9 @@ namespace QuadricsIntersection
 		std::vector<double> ss;
 		get_s(cur_t_ub - SQI_EPS, ss);
 		for (double s : ss) {
-			if (s >= s_lb_ && s <= s_ub_ && s >= C_.s_lb() && s <= C_.s_ub()) {
+			if (s >= s_lb_ && s <= s_ub_
+				// && s >= C_.s_lb() && s <= C_.s_ub()
+				) {
 				points.push_back(get_point(s, cur_t_ub - SQI_EPS));
 			}
 		}
@@ -353,7 +360,7 @@ namespace QuadricsIntersection
 
 			for (Eigen::Vector3d p : output_points) {
 #ifdef USE_FOR_OFFSET_MESH_GENERATION
-				if (std::abs(p.x()) > 1 || std::abs(p.y()) > 1 || std::abs(p.z()) > 1) continue;
+				//if (std::abs(p.x()) > 1 || std::abs(p.y()) > 1 || std::abs(p.z()) > 1) continue;
 #endif
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
@@ -392,9 +399,38 @@ namespace QuadricsIntersection
 
 	void write_result_points(
 		std::string output_file_path,
+		std::vector<ParameterizationCircle>& circles, std::vector<ParameterizationCylindricCurve>& curves,
+		double scale) {
+		std::vector<Point> points;
+		std::vector<Line> lines;
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
+	}
+
+	void write_result_points(
+		std::string output_file_path,
 		std::vector<Line>& lines, std::vector<ParameterizationCylindricCurve>& curves,
 		double scale) {
 		std::vector<Point> points;
+		std::vector<ParameterizationCircle> circles;
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
+	}
+
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<Line>& lines,
+		double scale) {
+		std::vector<Point> points;
+		std::vector<ParameterizationCircle> circles;
+		std::vector<ParameterizationCylindricCurve> curves;
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
+	}
+
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<ParameterizationCylindricCurve>& curves,
+		double scale) {
+		std::vector<Point> points;
+		std::vector<Line> lines;
 		std::vector<ParameterizationCircle> circles;
 		write_result_points(output_file_path, points, lines, circles, curves, scale);
 	}

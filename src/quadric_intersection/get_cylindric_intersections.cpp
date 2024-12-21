@@ -451,19 +451,26 @@ namespace QuadricsIntersection
 					ParameterizationCylindricCurve PC_s;
 					PC_C2.separate_s(PC_s);
 					curves.push_back(PC_C2); curves.push_back(PC_s);
-
-					// limited by cylinders
-					std::vector<ParameterizationCylindricCurve> tmp_curves;
-					for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
-						if (curves[i].limited_by(C1) && curves[i].limited_by(C2)) tmp_curves.push_back(curves[i]);
-					}
-					tmp_curves.swap(curves);
 				}
 				else {
 					SQI_VERBOSE_ONLY_COUT("may error?");
 				}
 			}
 		}
+
+		// limited by cylinders
+		std::vector<ParameterizationCylindricCurve> tmp_curves;
+		for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+			if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
+		}
+		std::vector<ParameterizationCylindricCurve> tmp_curves2;
+		for (int i = 0, i_end = tmp_curves.size(); i < i_end; ++i) {
+			std::vector<ParameterizationCylindricCurve> sub_PCs;
+			if (tmp_curves[i].limited_by(C1, sub_PCs)) tmp_curves2.push_back(tmp_curves[i]);
+
+			for (int ii = 0, ii_end = sub_PCs.size(); ii < ii_end; ++ii) tmp_curves2.push_back(sub_PCs[ii]);
+		}
+		curves.swap(tmp_curves2);
 
 		return points.size() + lines.size() + curves.size();
 	}
