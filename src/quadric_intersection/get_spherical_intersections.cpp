@@ -46,6 +46,15 @@ namespace QuadricsIntersection
 			}
 		}
 
+		// limit the circles
+		if (circles.size() > 0) {
+			std::vector<ParameterizationCircle> tmp_circles;
+			for (int i = 0, i_end = circles.size(); i < i_end; ++i) {
+				if (circles[i].limited_by(S1)) tmp_circles.push_back(circles[i]);
+			}
+			circles.swap(tmp_circles);
+		}
+
 		return points.size() + circles.size();
 	}
 
@@ -103,6 +112,19 @@ namespace QuadricsIntersection
 				circles.push_back(
 					ParameterizationCircle(circle_center, S2_cor_to_S1_cor_unit, circle_r));
 			}
+		}
+
+		// limit the circles
+		if (circles.size() > 0) {
+			std::vector<ParameterizationCircle> tmp_circles;
+			for (int i = 0, i_end = circles.size(); i < i_end; ++i) {
+				if (circles[i].limited_by(S1)) tmp_circles.push_back(circles[i]);
+			}
+			std::vector<ParameterizationCircle> tmp_circles2;
+			for (int i = 0, i_end = tmp_circles.size(); i < i_end; ++i) {
+				if (tmp_circles[i].limited_by(S2)) tmp_circles2.push_back(tmp_circles[i]);
+			}
+			circles.swap(tmp_circles2);
 		}
 
 		return points.size() + circles.size();

@@ -918,92 +918,111 @@ namespace QuadricsIntersection
 			}
 			else { // regions overlap
 				// SQI_VERBOSE_ONLY_COUT("regions overlap");
-
-				// check start endpoint
-				/* {
-					std::vector<double> ss1, ss2;
-					if (PC1.get_s(overlap_t_lb, ss1) == 1 && PC2.get_s(overlap_t_lb, ss2) == 1) {
-						if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
-							ParameterizationCylindricCurve sub_PC1, sub_PC2;
-							if (PC1.separate_t(sub_PC1, overlap_t_lb) == 1) sub_PC1s.push_back(sub_PC1);
-							if (PC2.separate_t(sub_PC2, overlap_t_lb) == 1) sub_PC2s.push_back(sub_PC2);
-						}
+				if (PC1.compare(PC2) == true) { // two curves are same, just modify the t_range
+					if (PC2.t_lb() < PC1.t_lb() && PC2.t_ub() > PC1.t_ub()) {
+						ParameterizationCylindricCurve sub_PC2_1, sub_PC2_2;
+						if (PC2.separate_t(sub_PC2_1, PC1.t_lb()) == 1) sub_PC2s.push_back(sub_PC2_1);
+						PC2.separate_t(sub_PC2_2, PC1.t_ub());
 					}
-				}*/
-
-				int pre_status = 0, status = 0;
-				double pre_t;
-				double t = overlap_t_lb + SQI_EPS;
-
-				while (t < overlap_t_ub + t_step) {
-					double cur_t = (t > overlap_t_ub) ? (overlap_t_ub) : t;
-
-					std::vector<double> C1_ss, C2_ss;
-					PC1.get_s(cur_t, C1_ss);
-					PC2.get_s(cur_t, C2_ss);
-					if (C1_ss.size() == 1 && C2_ss.size() == 1) {
-						status = (C1_ss[0] > C2_ss[0]) ? 1 : -1;
-
-						if (pre_status != 0) { // pre_status is meaningful
-
-							if (status == pre_status) { // [pre_t, t] dont have intersection
-								// do nothing
-							}
-							else { // [pre_t, t] have intersection
-								// SQI_VERBOSE_ONLY_COUT("get an intersection");
-
-								// do bisection
-								double t_lb = pre_t;
-								double t_ub = cur_t;
-
-								while (t_ub - t_lb > SQI_EPS) {
-									double mid_t = 0.5 * (t_lb + t_ub);
-									// SQI_VERBOSE_ONLY_TEST(pre_t << " " << mid_t << " " << t);
-
-									std::vector<double> ss1, ss2;
-									if (PC1.get_s(mid_t, ss1) == 1 && PC2.get_s(mid_t, ss2) == 1) {
-										int cur_status = (ss1[0] > ss2[0]) ? 1 : -1;
-
-										if (cur_status == pre_status) t_lb = mid_t;
-										else t_ub = mid_t;
-									}
-									else {
-										SQI_VERBOSE_ONLY_WARNING("bisection may error!");
-										return 0;
-									}
-								}
-
-								// cut the curves
-								ParameterizationCylindricCurve sub_PC1, sub_PC2;
-								if (PC1.separate_t(sub_PC1, t_lb) == 1) sub_PC1s.push_back(sub_PC1);
-								if (PC2.separate_t(sub_PC2, t_lb) == 1) sub_PC2s.push_back(sub_PC2);
-							}
-						}
-
-						pre_status = status;
+					else if (PC2.t_lb() < PC1.t_lb()) {
+						ParameterizationCylindricCurve sub_PC2;
+						if (PC2.separate_t(sub_PC2, PC1.t_lb()) == 1) PC2 = sub_PC2;
 					}
-					else if (C1_ss.size() == 0 || C2_ss.size() == 0) { // may out of region
+					else if (PC2.t_ub() > PC1.t_ub()) {
+						ParameterizationCylindricCurve sub_PC2;
+						PC2.separate_t(sub_PC2, PC1.t_ub());
 					}
-					else { // may error before
-						SQI_VERBOSE_ONLY_WARNING("input curves may not monotonicity!");
-						return 0;
+					else { // eliminte PC2
+						PC2.t_ub() = PC2.t_lb() - SQI_EPS;
 					}
-
-					pre_t = t;
-					t += t_step;
 				}
-
-				// check end endpoint
-				/* {
-					std::vector<double> ss1, ss2;
-					if (PC1.get_s(overlap_t_ub, ss1) == 1 && PC2.get_s(overlap_t_ub, ss2) == 1) {
-						if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
-							ParameterizationCylindricCurve sub_PC1, sub_PC2;
-							if (PC1.separate_t(sub_PC1, overlap_t_ub) == 1) sub_PC1s.push_back(sub_PC1);
-							if (PC2.separate_t(sub_PC2, overlap_t_ub) == 1) sub_PC2s.push_back(sub_PC2);
+				else {
+					// check start endpoint
+					/* {
+						std::vector<double> ss1, ss2;
+						if (PC1.get_s(overlap_t_lb, ss1) == 1 && PC2.get_s(overlap_t_lb, ss2) == 1) {
+							if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
+								ParameterizationCylindricCurve sub_PC1, sub_PC2;
+								if (PC1.separate_t(sub_PC1, overlap_t_lb) == 1) sub_PC1s.push_back(sub_PC1);
+								if (PC2.separate_t(sub_PC2, overlap_t_lb) == 1) sub_PC2s.push_back(sub_PC2);
+							}
 						}
+					}*/
+
+					int pre_status = 0, status = 0;
+					double pre_t;
+					double t = overlap_t_lb + SQI_EPS;
+
+					while (t < overlap_t_ub + t_step) {
+						double cur_t = (t > overlap_t_ub) ? (overlap_t_ub) : t;
+
+						std::vector<double> C1_ss, C2_ss;
+						PC1.get_s(cur_t, C1_ss);
+						PC2.get_s(cur_t, C2_ss);
+						if (C1_ss.size() == 1 && C2_ss.size() == 1) {
+							status = (C1_ss[0] > C2_ss[0]) ? 1 : -1;
+
+							if (pre_status != 0) { // pre_status is meaningful
+
+								if (status == pre_status) { // [pre_t, t] dont have intersection
+									// do nothing
+								}
+								else { // [pre_t, t] have intersection
+									// SQI_VERBOSE_ONLY_COUT("get an intersection");
+
+									// do bisection
+									double t_lb = pre_t;
+									double t_ub = cur_t;
+
+									while (t_ub - t_lb > SQI_EPS) {
+										double mid_t = 0.5 * (t_lb + t_ub);
+										// SQI_VERBOSE_ONLY_TEST(pre_t << " " << mid_t << " " << t);
+
+										std::vector<double> ss1, ss2;
+										if (PC1.get_s(mid_t, ss1) == 1 && PC2.get_s(mid_t, ss2) == 1) {
+											int cur_status = (ss1[0] > ss2[0]) ? 1 : -1;
+
+											if (cur_status == pre_status) t_lb = mid_t;
+											else t_ub = mid_t;
+										}
+										else {
+											SQI_VERBOSE_ONLY_WARNING("bisection may error!");
+											return 0;
+										}
+									}
+
+									// cut the curves
+									ParameterizationCylindricCurve sub_PC1, sub_PC2;
+									if (PC1.separate_t(sub_PC1, t_lb) == 1) sub_PC1s.push_back(sub_PC1);
+									if (PC2.separate_t(sub_PC2, t_lb) == 1) sub_PC2s.push_back(sub_PC2);
+								}
+							}
+
+							pre_status = status;
+						}
+						else if (C1_ss.size() == 0 || C2_ss.size() == 0) { // may out of region
+						}
+						else { // may error before
+							SQI_VERBOSE_ONLY_WARNING("input curves may not monotonicity!");
+							return 0;
+						}
+
+						pre_t = t;
+						t += t_step;
 					}
-				}*/
+
+					// check end endpoint
+					/* {
+						std::vector<double> ss1, ss2;
+						if (PC1.get_s(overlap_t_ub, ss1) == 1 && PC2.get_s(overlap_t_ub, ss2) == 1) {
+							if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
+								ParameterizationCylindricCurve sub_PC1, sub_PC2;
+								if (PC1.separate_t(sub_PC1, overlap_t_ub) == 1) sub_PC1s.push_back(sub_PC1);
+								if (PC2.separate_t(sub_PC2, overlap_t_ub) == 1) sub_PC2s.push_back(sub_PC2);
+							}
+						}
+					}*/
+				}
 			}
 		}
 

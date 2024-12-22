@@ -29,17 +29,21 @@ namespace QuadricsIntersection
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 		std::vector<Eigen::Vector3i>().swap(faces);
-		points.reserve(4);
-		faces.reserve(2);
 
-		Eigen::Vector3d u = get_perpendicular_normal(nor_);
-		Eigen::Vector3d v = nor_.cross(u).normalized();
-		points.push_back(cor_ + w * u + h * v);
-		points.push_back(cor_ + w * u - h * v);
-		points.push_back(cor_ - w * u + h * v);
-		points.push_back(cor_ - w * u - h * v);
-		faces.push_back(Eigen::Vector3i(0, 2, 1));
-		faces.push_back(Eigen::Vector3i(1, 2, 3));
+		if (vertices.size() == 3) {
+			points = vertices;
+			faces.push_back(Eigen::Vector3i(0, 1, 2));
+		}
+		else {
+			Eigen::Vector3d u = get_perpendicular_normal(nor_);
+			Eigen::Vector3d v = nor_.cross(u).normalized();
+			points.push_back(cor_ + w * u + h * v);
+			points.push_back(cor_ + w * u - h * v);
+			points.push_back(cor_ - w * u + h * v);
+			points.push_back(cor_ - w * u - h * v);
+			faces.push_back(Eigen::Vector3i(0, 2, 1));
+			faces.push_back(Eigen::Vector3i(1, 2, 3));
+		}
 	}
 
 	void Cylinder::output_model(
@@ -99,30 +103,21 @@ namespace QuadricsIntersection
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
 		std::vector<Eigen::Vector3i>().swap(faces);
-		points.reserve((h_seg - 2) * r_seg + 2);
-		faces.reserve((h_seg - 2) * r_seg * 2);
-		double h_angle = 180. / (h_seg - 1);
+		// points.reserve((h_seg - 2) * r_seg + 2);
+		// faces.reserve((h_seg - 2) * r_seg * 2);
+		double h_angle = (s_ub_ - s_lb_) / (h_seg - 1);
 		double r_angle = 360. / r_seg;
 
-		for (double phi = 0, phi_end = 180 + SQI_EPS; phi < phi_end; phi += h_angle) {
+		for (double phi = s_lb_, phi_end = s_ub_ + SQI_EPS; phi < phi_end; phi += h_angle) {
 			if (phi < SQI_EPS) {
 				points.push_back(get_point(phi, 0));
-				// points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, 1));
 			}
 			else if (std::abs(phi - 180) < SQI_EPS) {
 				points.push_back(get_point(phi, 0));
-				// points.push_back(cor_ + r_ * Eigen::Vector3d(0, 0, -1));
 			}
 			else {
 				for (double theta = 0, theta_end = 360 - SQI_EPS; theta < theta_end; theta += r_angle) {
 					points.push_back(get_point(phi, theta));
-					/*
-					points.push_back(
-						cor_ + Eigen::Vector3d(
-							r_ * std::sin(ang2rad(phi)) * std::cos(ang2rad(theta)),
-							r_ * std::sin(ang2rad(phi)) * std::sin(ang2rad(theta)),
-							r_ * std::cos(ang2rad(phi))
-						));*/
 				}
 			}
 		}
@@ -139,7 +134,7 @@ namespace QuadricsIntersection
 						faces.push_back(Eigen::Vector3i(cur_p, cur_p + 1, 0));
 					}
 				}
-				else if (h == h_seg - 1) {
+				else if (std::abs(180 - (s_ub_ - s_lb_)) < SQI_EPS && h == h_seg - 1) {
 					cur_p = (h - 2) * r_seg + r + 1;
 
 					if (r == r_seg - 1) {
@@ -223,7 +218,7 @@ namespace QuadricsIntersection
 
 			for (double s : ss) {
 				if (s >= s_lb_ && s <= s_ub_ 
-					// && s >= C_.s_lb() && s <= C_.s_ub()
+					&& s >= C_.s_lb() && s <= C_.s_ub()
 					) {
 					points.push_back(get_point(s, cur_t));
 				}
@@ -234,7 +229,7 @@ namespace QuadricsIntersection
 		get_s(cur_t_ub - SQI_EPS, ss);
 		for (double s : ss) {
 			if (s >= s_lb_ && s <= s_ub_
-				// && s >= C_.s_lb() && s <= C_.s_ub()
+				&& s >= C_.s_lb() && s <= C_.s_ub()
 				) {
 				points.push_back(get_point(s, cur_t_ub - SQI_EPS));
 			}
@@ -360,7 +355,7 @@ namespace QuadricsIntersection
 
 			for (Eigen::Vector3d p : output_points) {
 #ifdef USE_FOR_OFFSET_MESH_GENERATION
-				//if (std::abs(p.x()) > 1 || std::abs(p.y()) > 1 || std::abs(p.z()) > 1) continue;
+				if (std::abs(p.x()) > 1 || std::abs(p.y()) > 1 || std::abs(p.z()) > 1) continue;
 #endif
 				out << "v" << " " << p.transpose() << " " << color.transpose() << std::endl;
 			}
@@ -421,6 +416,16 @@ namespace QuadricsIntersection
 		double scale) {
 		std::vector<Point> points;
 		std::vector<ParameterizationCircle> circles;
+		std::vector<ParameterizationCylindricCurve> curves;
+		write_result_points(output_file_path, points, lines, circles, curves, scale);
+	}
+
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<ParameterizationCircle>& circles,
+		double scale) {
+		std::vector<Point> points;
+		std::vector<Line> lines;
 		std::vector<ParameterizationCylindricCurve> curves;
 		write_result_points(output_file_path, points, lines, circles, curves, scale);
 	}

@@ -13,6 +13,53 @@ namespace QuadricsIntersection
 		return true;
 	}
 
+	bool Line::limited_by(Plane& P) {
+		if (P.vertices.size() != 3) return true;
+
+		Eigen::Vector3d* P1 = &(P.vertices[0]);
+		Eigen::Vector3d* P2 = &(P.vertices[1]);
+		Eigen::Vector3d* P3 = &(P.vertices[2]);
+		
+		double P1_cor_dot_nor = (*P1 - cor_).dot(nor_);
+		double P2_cor_dot_nor = (*P2 - cor_).dot(nor_);
+		double P3_cor_dot_nor = (*P3 - cor_).dot(nor_);
+
+		Eigen::Vector3d P1_proj_L = cor_ + P1_cor_dot_nor * nor_;
+		Eigen::Vector3d P2_proj_L = cor_ + P2_cor_dot_nor * nor_;
+		Eigen::Vector3d P3_proj_L = cor_ + P3_cor_dot_nor * nor_;
+		double P1_proj_L_norm = (*P1 - P1_proj_L).norm();
+		double P2_proj_L_norm = (*P2 - P2_proj_L).norm();
+		double P3_proj_L_norm = (*P3 - P3_proj_L).norm();
+
+		Eigen::Vector3d Edge12_intersect_point = P2_proj_L_norm * (*P1) + P1_proj_L_norm * (*P2);
+		Edge12_intersect_point /= (P1_proj_L_norm + P2_proj_L_norm);
+		Eigen::Vector3d Edge23_intersect_point = P3_proj_L_norm * (*P2) + P2_proj_L_norm * (*P3);
+		Edge23_intersect_point /= (P2_proj_L_norm + P3_proj_L_norm);
+		Eigen::Vector3d Edge31_intersect_point = P1_proj_L_norm * (*P3) + P3_proj_L_norm * (*P1);
+		Edge31_intersect_point /= (P3_proj_L_norm + P1_proj_L_norm);
+
+		std::vector<double> intersect_s;
+		Eigen::Vector3d cor_to_Edge12_intersect_point = Edge12_intersect_point - cor_;
+		Eigen::Vector3d cor_to_Edge23_intersect_point = Edge23_intersect_point - cor_;
+		Eigen::Vector3d cor_to_Edge31_intersect_point = Edge31_intersect_point - cor_;
+		double s1 = cor_to_Edge12_intersect_point.dot(nor_);
+		double s2 = cor_to_Edge23_intersect_point.dot(nor_);
+		double s3 = cor_to_Edge31_intersect_point.dot(nor_);
+		if (1 - std::abs(s1 / cor_to_Edge12_intersect_point.norm()) < SQI_EPS) intersect_s.push_back(s1);
+		if (1 - std::abs(s2 / cor_to_Edge23_intersect_point.norm()) < SQI_EPS) intersect_s.push_back(s2);
+		if (1 - std::abs(s3 / cor_to_Edge31_intersect_point.norm()) < SQI_EPS) intersect_s.push_back(s3);
+
+		if (intersect_s.size() == 2) { // intersect
+			std::sort(intersect_s.begin(), intersect_s.end());
+			s_lb_ = std::max(s_lb_, intersect_s[0]);
+			s_ub_ = std::min(s_ub_, intersect_s[1]);
+
+			if (s_ub_ - s_lb_ < SQI_EPS) return false;
+		}
+
+		return true;
+	}
+
 	bool Line::limited_by(Cylinder& C) {
 		Eigen::Vector3d L_cor_to_C_cor = C.cor() - cor_;
 		double L_cor_to_C_cor_dot_C_nor = L_cor_to_C_cor.dot(C.nor());
@@ -36,6 +83,60 @@ namespace QuadricsIntersection
 		}
 		else { // this Line is not on Cylinder C
 			return false;
+		}
+
+		return true;
+	}
+
+	bool ParameterizationCircle::limited_by(Sphere& S) {
+		double cos_s_ub = std::cos(ang2rad(S.s_ub()));
+		Eigen::Vector3d Sc_cor = S.cor() + S.r() * cos_s_ub * S.nor();
+		double Sc_r = S.r() * std::sqrt(1 - cos_s_ub * cos_s_ub);
+
+		ParameterizationCircle Sc(Sc_cor, S.nor(), Sc_r);
+
+		std::vector<ParameterizationCircle> sub_cs, sub_Scs;
+		get_intersections(*this, Sc, sub_cs, sub_Scs);
+		sub_cs.push_back(*this);
+
+		for (int i = 0, i_end = sub_cs.size(); i < i_end; ++i) {
+			ParameterizationCircle* cur_s = &(sub_cs[i]);
+			Eigen::Vector3d c_p = cur_s->get_point(0.5 * (cur_s->t_lb() + cur_s->t_ub()));
+
+			double Ss, St;
+			S.get_s_t(c_p, Ss, St);
+
+			if (Ss > S.s_lb() && Ss < S.s_ub()) {
+				*this = *cur_s;
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	bool ParameterizationCylindricCurve::limited_by(
+		Plane& P,
+		std::vector<ParameterizationCylindricCurve>& sub_PCs
+	) {
+		if (P.vertices.size() != 3) return true;
+
+		Eigen::Vector3d* P1 = &(P.vertices[0]);
+		Eigen::Vector3d* P2 = &(P.vertices[1]);
+		Eigen::Vector3d* P3 = &(P.vertices[2]);
+
+		Line L12(*P1, (*P2 - *P1));
+		Line L23(*P2, (*P3 - *P2));
+		Line L31(*P3, (*P1 - *P3));
+
+		std::vector<Point> L12_intersect_points, L23_intersect_points, L31_intersect_points;
+		get_intersections(L12, C_, L12_intersect_points);
+		get_intersections(L23, C_, L23_intersect_points);
+		get_intersections(L31, C_, L31_intersect_points);
+
+		for (int i = 0, i_end = L12_intersect_points.size(); i < i_end; ++i) {
+			Point* P = &(L12_intersect_points[i]);
+
 		}
 
 		return true;

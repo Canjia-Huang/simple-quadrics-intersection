@@ -38,7 +38,11 @@ namespace QuadricsIntersection
 		std::vector<Line>().swap(Ls);
 
 		Line L;
-		if (get_intersections(P1, P2, L, limit_angle) == 1) Ls.push_back(L);
+		if (get_intersections(P1, P2, L, limit_angle) == 1) {
+			if (L.limited_by(P1) == false) return 0;
+			if (L.limited_by(P2) == false) return 0;
+			Ls.push_back(L);
+		}
 
 		return Ls.size();
 	}

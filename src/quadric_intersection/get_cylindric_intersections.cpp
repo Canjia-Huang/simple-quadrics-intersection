@@ -93,8 +93,10 @@ namespace QuadricsIntersection
 
 				Eigen::Vector3d L1_cor = C1.get_point(s, t + rot_angle);
 				Eigen::Vector3d L2_cor = C1.get_point(s, t - rot_angle);
-				lines.push_back(Line(L1_cor, C1.nor()));
-				lines.push_back(Line(L2_cor, C1.nor()));
+				Line L1(L1_cor, C1.nor());
+				Line L2(L2_cor, C1.nor());
+				if (L1.limited_by(P1) == true) lines.push_back(L1);
+				if (L2.limited_by(P1) == true) lines.push_back(L2);
 			}
 			else { // tangent: result 1 line
 				SQI_VERBOSE_ONLY_COUT("tangent");
@@ -103,8 +105,11 @@ namespace QuadricsIntersection
 				double s, t;
 				C1.get_s_t(intersect_point, s, t);
 
-				Eigen::Vector3d L_cor = C1.get_point(s, t);
-				lines.push_back(Line(L_cor, C1.nor()));
+				if (std::abs(t - C1.t_lb()) > SQI_LOOSE_EPS && std::abs(t - C1.t_ub()) > SQI_LOOSE_EPS) { // line is not feature line
+					Eigen::Vector3d L_cor = C1.get_point(s, t);
+					Line L(L_cor, C1.nor());
+					if (L.limited_by(P1) == true) lines.push_back(L);
+				}
 			}
 		}
 		else { // not parallel
@@ -113,14 +118,14 @@ namespace QuadricsIntersection
 			std::vector<double> a_t = {
 					0
 			};
-			SQI_VERBOSE_ONLY_COUT("a_t:" << " " << a_t[0]);
+			// SQI_VERBOSE_ONLY_COUT("a_t:" << " " << a_t[0]);
 
 			std::vector<double> b_t = {
 					0,
 					0,
 					C1.nor().dot(P1.nor())
 			};
-			SQI_VERBOSE_ONLY_COUT("b_t:" << " " << b_t[0] << " " << b_t[1] << " " << b_t[2]);
+			// SQI_VERBOSE_ONLY_COUT("b_t:" << " " << b_t[0] << " " << b_t[1] << " " << b_t[2]);
 
 			std::vector<double> c_t = {
 					0,
@@ -130,7 +135,7 @@ namespace QuadricsIntersection
 					C1.r() * C1.v().dot(P1.nor()),
 					P1_cor_to_C1_cor.dot(P1.nor())
 			};
-			SQI_VERBOSE_ONLY_COUT("c_t:" << " " << c_t[0] << " " << c_t[1] << " " << c_t[2] << " " << c_t[3] << " " << c_t[4] << " " << c_t[5]);
+			// SQI_VERBOSE_ONLY_COUT("c_t:" << " " << c_t[0] << " " << c_t[1] << " " << c_t[2] << " " << c_t[3] << " " << c_t[4] << " " << c_t[5]);
 
 			ParameterizationCylindricCurve PC(
 				a_t, b_t, c_t,
@@ -139,7 +144,6 @@ namespace QuadricsIntersection
 			// check limit angle
 			if (limit_angle > SQI_EPS) {
 				double cos_limit_angle = std::cos(ang2rad(limit_angle));
-				SQI_VERBOSE_ONLY_TEST("cos limit angle:" << cos_limit_angle);
 
 				// project P1_nor to u-v-axes
 				Eigen::Vector3d P1_nor_proj = P1.nor() - P1.nor().dot(C1.nor()) * C1.nor();
@@ -209,6 +213,15 @@ namespace QuadricsIntersection
 				curves.push_back(PC);
 			}
 
+		}
+
+		// limit the curves
+		if (curves.size() > 0) {
+			std::vector<ParameterizationCylindricCurve> tmp_curves;
+			for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+				if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
+			}
+			curves.swap(tmp_curves);
 		}
 
 		return lines.size() + curves.size();
@@ -459,18 +472,20 @@ namespace QuadricsIntersection
 		}
 
 		// limited by cylinders
-		std::vector<ParameterizationCylindricCurve> tmp_curves;
-		for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
-			if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
-		}
-		std::vector<ParameterizationCylindricCurve> tmp_curves2;
-		for (int i = 0, i_end = tmp_curves.size(); i < i_end; ++i) {
-			std::vector<ParameterizationCylindricCurve> sub_PCs;
-			if (tmp_curves[i].limited_by(C1, sub_PCs)) tmp_curves2.push_back(tmp_curves[i]);
+		if (curves.size() > 0) {
+			std::vector<ParameterizationCylindricCurve> tmp_curves;
+			for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+				if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
+			}
+			std::vector<ParameterizationCylindricCurve> tmp_curves2;
+			for (int i = 0, i_end = tmp_curves.size(); i < i_end; ++i) {
+				std::vector<ParameterizationCylindricCurve> sub_PCs;
+				if (tmp_curves[i].limited_by(C1, sub_PCs)) tmp_curves2.push_back(tmp_curves[i]);
 
-			for (int ii = 0, ii_end = sub_PCs.size(); ii < ii_end; ++ii) tmp_curves2.push_back(sub_PCs[ii]);
+				for (int ii = 0, ii_end = sub_PCs.size(); ii < ii_end; ++ii) tmp_curves2.push_back(sub_PCs[ii]);
+			}
+			curves.swap(tmp_curves2);
 		}
-		curves.swap(tmp_curves2);
 
 		return points.size() + lines.size() + curves.size();
 	}
@@ -599,6 +614,15 @@ namespace QuadricsIntersection
 					curves.push_back(PC); curves.push_back(PC_s);
 				}
 			}
+		}
+
+		// limit the curves
+		if (curves.size() > 0) {
+			std::vector<ParameterizationCylindricCurve> tmp_curves;
+			for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
+				if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
+			}
+			curves.swap(tmp_curves);
 		}
 
 		return points.size() + curves.size();

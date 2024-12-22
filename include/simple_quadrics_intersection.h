@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-//#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -27,6 +27,7 @@
 #endif
 
 #define SQI_EPS	1e-12
+#define SQI_LOOSE_EPS 1e-2
 #define SQI_INFTY 1e12
 #define SQI_PI 3.141592653589793
 #define SQI_REC_PI 0.318309886183791
@@ -120,10 +121,16 @@ namespace QuadricsIntersection {
 			nor.normalize();
 			cor_ = cor; nor_ = nor;
 		}
+		Plane(Eigen::Vector3d P1, Eigen::Vector3d P2, Eigen::Vector3d P3) {
+			vertices.push_back(P1); vertices.push_back(P2); vertices.push_back(P3);
+			cor_ = P1;
+			nor_ = ((P2 - P1).cross(P3 - P2)).normalized();
+		}
 		Plane& operator =(const Plane& P) {
 			if (this != &P) {
 				this->cor_ = P.cor_;
 				this->nor_ = P.nor_;
+				this->vertices = P.vertices;
 			}
 			return *this;
 		}
@@ -348,6 +355,7 @@ namespace QuadricsIntersection {
 		}
 
 		/* if this line is eliminated, return false, else cut this line */
+		bool limited_by(Plane& P); // limit by Plane's triangular face's vertices
 		bool limited_by(Cylinder& C);
 
 		Eigen::Vector3d& cor() { return cor_; }
@@ -430,6 +438,9 @@ namespace QuadricsIntersection {
 				if (this->separate_t(sub_C, t) == 1) Cs.push_back(sub_C);
 			}
 		}
+
+		/* if this circle is eliminated, return false, else cut this circle */
+		bool limited_by(Sphere& S); // the range of s in S is between [0, s_ub]
 
 		Eigen::Vector3d& cor() { return cor_; }
 		Eigen::Vector3d& nor() { return nor_; }
@@ -609,7 +620,7 @@ namespace QuadricsIntersection {
 
 			double overlap_t_lb = std::max(this->t_lb(), PC.t_lb());
 			double overlap_t_ub = std::min(this->t_ub(), PC.t_ub());
-			if (overlap_t_ub > overlap_t_lb - SQI_EPS) return false;
+			if (overlap_t_ub - overlap_t_lb < SQI_EPS) return false;
 
 			for (int i = 0; i < 3; ++i) {
 				double r = double(rand()) / RAND_MAX;
@@ -633,6 +644,7 @@ namespace QuadricsIntersection {
 		Cylinder& C() { return C_; }
 
 		/* if this curve is eliminated, return false, else cut this curve */
+		bool limited_by(Plane& P, std::vector<ParameterizationCylindricCurve>& sub_PCs);
 		bool limited_by(); // limit by self cylinder
 		bool limited_by(Cylinder& C, std::vector<ParameterizationCylindricCurve>& sub_PCs);
 
@@ -978,6 +990,10 @@ namespace QuadricsIntersection {
 	void write_result_points(
 		std::string output_file_path,
 		std::vector<Line>& lines,
+		double scale = 1.);
+	void write_result_points(
+		std::string output_file_path,
+		std::vector<ParameterizationCircle>& circles,
 		double scale = 1.);
 	void write_result_points(
 		std::string output_file_path,
