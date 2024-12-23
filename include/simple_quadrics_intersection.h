@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -310,6 +310,13 @@ namespace QuadricsIntersection {
 		Point(Eigen::Vector3d cor) {
 			cor_ = cor;
 		}
+		Point& operator =(const Point& P) {
+			if (this != &P) {
+				this->cor_ = P.cor_;
+				this->ids = P.ids;
+			}
+			return *this;
+		}
 
 		/* if this point is eliminated, return false */
 		bool limited_by(Cylinder& C);
@@ -335,6 +342,14 @@ namespace QuadricsIntersection {
 		Line(Eigen::Vector3d cor, Eigen::Vector3d nor) {
 			nor.normalize();
 			cor_ = cor; nor_ = nor;
+		}
+		Line& operator =(const Line& L) {
+			if (this != &L) {
+				this->cor_ = L.cor_; this->nor_ = L.nor_;
+				this->s_lb_ = L.s_lb_; this->s_ub_ = L.s_ub_;
+				this->ids = L.ids;
+			}
+			return *this;
 		}
 		Eigen::Vector3d get_point(double s) {
 			return cor_ + s * nor_;
@@ -397,6 +412,16 @@ namespace QuadricsIntersection {
 			cor_ = cor; nor_ = nor; r_ = r;
 			u_ = get_perpendicular_normal(nor_);
 			v_ = nor_.cross(u_).normalized();
+		}
+		ParameterizationCircle& operator =(const ParameterizationCircle& c) {
+			if (this != &c) {
+				this->cor_ = c.cor_; this->nor_ = c.nor_;
+				this->u_ = c.u_; this->v_ = c.v_; 
+				this->r_ = c.r_;
+				this->t_lb_ = c.t_lb_; this->t_ub_ = c.t_ub_;
+				this->ids = c.ids;
+			}
+			return *this;
 		}
 		Eigen::Vector3d get_point(double t) {
 			double rad_t = ang2rad(t);
