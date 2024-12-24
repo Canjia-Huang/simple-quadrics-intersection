@@ -188,38 +188,64 @@ namespace QuadricsIntersection
 		std::vector<Line>().swap(sub_L1s);
 		std::vector<Line>().swap(sub_L2s);
 
+		if (L1.s_ub() - L1.s_lb() < SQI_EPS) return 0;
+		if (L2.s_ub() - L2.s_lb() < SQI_EPS) return 0;
+
 		Eigen::Vector3d cross_vec = L1.nor().cross(L2.nor());
 		double sin_angle = cross_vec.norm();
 		cross_vec /= sin_angle; // normalize
 		double L1_L2_dis = (L2.cor() - L1.cor()).dot(cross_vec);
 
-		if (L1_L2_dis > SQI_EPS) { // not intersect
+		if (L1_L2_dis > SQI_LOOSE_EPS) { // not intersect
 			// do nothing
 		}
 		else {
-			if (1 - std::abs(L2.nor().dot(L1.nor())) < SQI_EPS) { // two lines are parallel
-				/*
+			if (L2.nor().dot(L1.nor()) + 1 < 1e-1) { // orient the lines
+				L2.nor() = -L2.nor();
+				L2.s_lb() = -L2.s_lb(); L2.s_ub() = -L2.s_ub();
+			}
+
+			if (1 - L2.nor().dot(L1.nor()) < SQI_LOOSE_EPS) { // two lines are parallel
+
 				// check if have union region
 				Eigen::Vector3d L2_s_lb = L2.get_point(L2.s_lb());
 				Eigen::Vector3d L2_s_ub = L2.get_point(L2.s_ub());
 				double L2_s_lb_L1_s = L1.get_s(L2_s_lb);
 				double L2_s_ub_L1_s = L1.get_s(L2_s_ub);
-				if (L2_s_lb_L1_s > L2_s_ub_L1_s) { // sort to L2_s_lb_L1_s < L2_s_ub_L1_s
-					double tmp_s = L2_s_lb_L1_s;
-					L2_s_lb_L1_s = L2_s_ub_L1_s; L2_s_ub_L1_s = tmp_s;
-				}
 
-				if (L2_s_ub_L1_s < L1.s_lb() || L2_s_lb_L1_s > L1.s_ub()) { // s region not overlap
-					// do nothing
+				if (L2_s_lb_L1_s > L1.s_ub() - SQI_EPS || L2_s_ub_L1_s < L1.s_lb() + SQI_EPS) return 0; // region not overlap
+
+				if (L2_s_lb_L1_s > L1.s_lb() - SQI_EPS && L2_s_ub_L1_s < L1.s_ub() + SQI_EPS) { // eliminate L2
+					L2.s_ub() = L2.s_lb() - SQI_EPS;
 				}
-				else { // merge two lines
-					double max_s = std::max(L1.s_ub(), L2_s_ub_L1_s);
-					double min_s = std::min(L1.s_lb(), L2_s_lb_L1_s);
-					double mid_s = 0.5 * (max_s + min_s);
-					L2.cor() = L1.cor(); L2.nor() = L1.nor();
-					L1.s_lb() = mid_s; L1.s_ub() = max_s;
-					L2.s_lb() = min_s; L2.s_ub() = mid_s;
-				}*/
+				else if (L1.s_lb() > L2_s_lb_L1_s - SQI_EPS && L1.s_ub() < L2_s_ub_L1_s + SQI_EPS) { // eliminate L1
+					L1.s_ub() = L1.s_lb() - SQI_EPS;
+				}
+				else {
+					Eigen::Vector3d L1_s_lb = L1.get_point(L1.s_lb());
+					Eigen::Vector3d L1_s_ub = L1.get_point(L1.s_ub());
+					double L1_s_lb_L2_s = L2.get_s(L1_s_lb);
+					double L1_s_ub_L2_s = L2.get_s(L1_s_ub);
+
+					if (L2_s_lb_L1_s > L1.s_lb() - SQI_EPS) {
+						// Line sub_L1;
+						// L1.separate_s(sub_L1, L2_s_lb_L1_s);
+						// sub_L1s.push_back(L1); L1 = sub_L1;
+
+						Line sub_L2;
+						L2.separate_s(sub_L2, L1_s_ub_L2_s);
+						// sub_L2s.push_back(sub_L2);
+					}
+					else if (L2_s_ub_L1_s < L1.s_ub() + SQI_EPS) {
+						Line sub_L1;
+						L1.separate_s(sub_L1, L2_s_ub_L1_s);
+						// sub_L1s.push_back(sub_L1);
+
+						// Line sub_L2;
+						// L2.separate_s(sub_L2, L1_s_lb_L2_s);
+						// sub_L2s.push_back(L2); L2 = sub_L2;
+					}
+				}
 			}
 			else { // intersect a point
 				Eigen::Vector3d L2_cor_to_L1_cor = L1.cor() - L2.cor();
@@ -255,17 +281,28 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Lines and Lines");
 
-		for (int i = 0; i < L1s.size(); ++i) { // note: the vector L1s's size is dymanic, so cannot use i_end = L1s.size.
-			for (int j = 0, j_end = L2s.size(); j < j_end; ++j) { // note: the vector PC1s's size is dymanic, but the newly added curves do not need to be judged again.
+		std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+		for (int i = 0; i < L1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
+			for (int j = 0, j_end = L2s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
+				if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;
+
 				Line* L1 = &L1s[i];
 				Line* L2 = &L2s[j];
 
 				std::vector<Line> sub_L1s;
 				std::vector<Line> sub_L2s;
 				if (get_intersections(*L1, *L2, sub_L1s, sub_L2s) > 0) {
+					int cur_L1s_size = L1s.size();
+					int cur_L2s_size = L2s.size();
+					for (int ii = 0, ii_end = sub_L1s.size(); ii < ii_end; ++ii) {
+						skip_set.insert(std::make_pair(cur_L1s_size + ii, j));
+						for (int jj = 0, jj_end = sub_L2s.size(); jj < jj_end; ++jj) {
+							skip_set.insert(std::make_pair(cur_L1s_size + ii, cur_L2s_size + jj));
+						}
+					}
 
-					for (auto l : sub_L1s) L1s.push_back(l);
-					for (auto l : sub_L2s) L2s.push_back(l);
+					for (int ii = 0, ii_end = sub_L1s.size(); ii < ii_end; ++ii) L1s.push_back(sub_L1s[ii]);
+					for (int ii = 0, ii_end = sub_L2s.size(); ii < ii_end; ++ii) L2s.push_back(sub_L2s[ii]);
 				}
 			}
 		}
@@ -912,28 +949,37 @@ namespace QuadricsIntersection
 			// get overlap parameterization region
 			double overlap_t_lb = std::max(PC1.t_lb(), PC2.t_lb());
 			double overlap_t_ub = std::min(PC1.t_ub(), PC2.t_ub());
-			if (overlap_t_lb > overlap_t_ub - SQI_EPS) { // regions dont overlap
+			if (overlap_t_ub - overlap_t_lb < SQI_EPS) { // regions dont overlap
 				// SQI_VERBOSE_ONLY_COUT("regions dont overlap");
 				// do nothing
 			}
 			else { // regions overlap
 				// SQI_VERBOSE_ONLY_COUT("regions overlap");
-				if (PC1.compare(PC2) == true) { // two curves are same, just modify the t_range
-					if (PC2.t_lb() < PC1.t_lb() && PC2.t_ub() > PC1.t_ub()) {
-						ParameterizationCylindricCurve sub_PC2_1, sub_PC2_2;
-						if (PC2.separate_t(sub_PC2_1, PC1.t_lb()) == 1) sub_PC2s.push_back(sub_PC2_1);
-						PC2.separate_t(sub_PC2_2, PC1.t_ub());
-					}
-					else if (PC2.t_lb() < PC1.t_lb()) {
-						ParameterizationCylindricCurve sub_PC2;
-						if (PC2.separate_t(sub_PC2, PC1.t_lb()) == 1) PC2 = sub_PC2;
-					}
-					else if (PC2.t_ub() > PC1.t_ub()) {
-						ParameterizationCylindricCurve sub_PC2;
-						PC2.separate_t(sub_PC2, PC1.t_ub());
-					}
-					else { // eliminte PC2
+
+				if (PC1.compare(PC2) == true) { // two curves are same
+					if (PC2.t_lb() > PC1.t_lb() - SQI_EPS && PC2.t_ub() < PC1.t_ub() + SQI_EPS) { // eliminate PC2
 						PC2.t_ub() = PC2.t_lb() - SQI_EPS;
+					}
+					else if (PC1.t_lb() > PC2.t_lb() - SQI_EPS && PC1.t_ub() < PC2.t_ub() + SQI_EPS) { // eliminate PC1
+						PC1.t_ub() = PC1.t_lb() - SQI_EPS;
+					}
+					else {
+						if (overlap_t_lb > PC1.t_lb() + SQI_EPS) {
+							ParameterizationCylindricCurve sub_PC1;
+							PC1.separate_t(sub_PC1, overlap_t_lb);
+							sub_PC1s.push_back(PC1); PC1 = sub_PC1;
+
+							ParameterizationCylindricCurve sub_PC2;
+							PC2.separate_t(sub_PC2, overlap_t_lb);
+						}
+						else if (overlap_t_ub < PC1.t_ub() - SQI_EPS) {
+							ParameterizationCylindricCurve sub_PC1;
+							PC1.separate_t(sub_PC1, overlap_t_lb);
+
+							ParameterizationCylindricCurve sub_PC2;
+							PC2.separate_t(sub_PC2, overlap_t_lb);
+							sub_PC2s.push_back(PC2); PC2 = sub_PC2;
+						}
 					}
 				}
 				else {

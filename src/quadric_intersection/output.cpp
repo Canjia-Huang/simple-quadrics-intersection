@@ -158,20 +158,20 @@ namespace QuadricsIntersection
 		}
 	}
 
-	void Line::output_model(
+	void Line::output_connections(
 		std::vector<Eigen::Vector3d>& points,
-		std::vector<Eigen::Vector2i>& lines,
-		double l
+		double sample_dis
 	) {
 		// init
 		std::vector<Eigen::Vector3d>().swap(points);
-		std::vector<Eigen::Vector2i>().swap(lines);
-		points.reserve(2);
-		lines.reserve(1);
 
-		points.push_back(get_point(std::min(0.5 * l, s_ub_)));
-		points.push_back(get_point(std::max(-0.5 * l, s_lb_)));
-		lines.push_back(Eigen::Vector2i(0, 1));
+		double line_length = s_ub_ - s_lb_;
+		double sample_num = std::ceil(line_length / sample_dis);
+		
+		for (int i = 0; i < sample_num; ++i) {
+			points.push_back(get_point(s_lb_ + (double(i) / sample_num * line_length)));
+		}
+		points.push_back(get_point(s_ub_));
 	}
 
 	void Line::output_points(
@@ -201,6 +201,34 @@ namespace QuadricsIntersection
 			points.push_back(get_point(t));
 		}
 		points.push_back(get_point(t_ub_));
+	}
+
+	void ParameterizationCylindricCurve::output_connections(
+		std::vector<Eigen::Vector3d>& points,
+		double sample_dis
+	) {
+		double t_length = t_ub_ - t_lb_;
+		double sample_num = std::ceil(t_length / sample_dis);
+
+		for (int i = 0; i < sample_num; ++i) {
+			double t = t_lb_ + (double(i) / sample_num * t_length);
+			std::vector<double> ss;
+			get_s(t, ss);
+
+			for (double s : ss) {
+				if (s >= s_lb_ && s <= s_ub_
+					&& s >= C_.s_lb() && s <= C_.s_ub()
+					) points.push_back(get_point(s, t));
+			}
+		}
+		{
+			std::vector<double> ss;
+			get_s(t_ub_, ss);
+			if (ss.size() == 0) return;
+			if (ss[0] >= s_lb_ && ss[0] <= s_ub_
+				&& ss[0] >= C_.s_lb() && ss[0] <= C_.s_ub()
+				) points.push_back(get_point(ss[0], t_ub_));
+		}
 	}
 
 	void ParameterizationCylindricCurve::output_points(

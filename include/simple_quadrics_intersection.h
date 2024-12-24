@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -27,7 +27,7 @@
 #endif
 
 #define SQI_EPS	1e-12
-#define SQI_LOOSE_EPS 1e-2
+#define SQI_LOOSE_EPS 1e-3
 #define SQI_INFTY 1e12
 #define SQI_PI 3.141592653589793
 #define SQI_REC_PI 0.318309886183791
@@ -378,17 +378,20 @@ namespace QuadricsIntersection {
 		double& s_lb() { return s_lb_; }
 		double& s_ub() { return s_ub_; }
 
-		void output_model(
+		void output_connections(
 			std::vector<Eigen::Vector3d>& points,
-			std::vector<Eigen::Vector2i>& lines,
-			double l = 20.);
+			double sample_dis = 0.01);
 		void output_points(
 			std::vector<Eigen::Vector3d>& points,
 			double l = 50., int seg = 200);
 	private:
 		Eigen::Vector3d cor_; // a point at the line
 		Eigen::Vector3d nor_; // the vector of the line
+#ifdef USE_FOR_OFFSET_MESH_GENERATION
+		double s_lb_ = -0.5, s_ub_ = 0.5;
+#else
 		double s_lb_ = -SQI_INFTY, s_ub_ = SQI_INFTY;
+#endif
 	public: // free to use for any purpose
 		std::pair<int, int> ids = std::make_pair<int, int>(-1, -1);
 	};
@@ -643,6 +646,20 @@ namespace QuadricsIntersection {
 		bool compare(ParameterizationCylindricCurve& PC) {
 			if (this == &PC) return true;
 
+			// numeric method
+			if (std::abs(this->a_t_[0] - PC.a_t_[0]) > 1e-3 ||
+				std::abs(this->b_t_[0] - PC.b_t_[0]) > 1e-3 ||
+				std::abs(this->b_t_[1] - PC.b_t_[1]) > 1e-3 ||
+				std::abs(this->b_t_[2] - PC.b_t_[2]) > 1e-3 ||
+				std::abs(this->c_t_[0] - PC.c_t_[0]) > 1e-3 ||
+				std::abs(this->c_t_[1] - PC.c_t_[1]) > 1e-3 ||
+				std::abs(this->c_t_[2] - PC.c_t_[2]) > 1e-3 ||
+				std::abs(this->c_t_[3] - PC.c_t_[3]) > 1e-3 ||
+				std::abs(this->c_t_[4] - PC.c_t_[4]) > 1e-3 ||
+				std::abs(this->c_t_[5] - PC.c_t_[5]) > 1e-3) return false;
+			return true;
+
+			// sample method
 			double overlap_t_lb = std::max(this->t_lb(), PC.t_lb());
 			double overlap_t_ub = std::min(this->t_ub(), PC.t_ub());
 			if (overlap_t_ub - overlap_t_lb < SQI_EPS) return false;
@@ -680,6 +697,9 @@ namespace QuadricsIntersection {
 			SQI_VERBOSE_ONLY_COUT("s_bound:" << " " << s_lb_ << "--" << s_ub_ << " " << "s_part:" << " " << s_part_);
 			SQI_VERBOSE_ONLY_COUT("t_bound:" << " " << t_lb_ << "--" << t_ub_);
 		}
+		void output_connections(
+			std::vector<Eigen::Vector3d>& points,
+			double sample_dis = 0.01);
 		void output_points(
 			std::vector<Eigen::Vector3d>& points,
 			double t_step = 0.5);
