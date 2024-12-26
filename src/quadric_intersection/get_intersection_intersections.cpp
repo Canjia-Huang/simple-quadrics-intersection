@@ -1,9 +1,10 @@
 #include "simple_quadrics_intersection.h"
 #include <unordered_set>
+#include <boost/container_hash/hash.hpp>
 
 // dont show the VERBOSE info
-#define SQI_VERBOSE_ONLY_TITLE(x)
-#define SQI_VERBOSE_ONLY_COUT(x)
+// #define SQI_VERBOSE_ONLY_TITLE(x)
+//#define SQI_VERBOSE_ONLY_COUT(x)
 
 namespace QuadricsIntersection
 {
@@ -45,6 +46,8 @@ namespace QuadricsIntersection
 		std::vector<Line>& L1s
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Points and Lines");
+
+		if (P1s.size() == 0 || L1s.size() == 0) return P1s.size() + L1s.size();
 
 		for (int i = 0; i < P1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = L1s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
@@ -93,6 +96,8 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCircle>& c1s
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Points and Circles");
+
+		if (P1s.size() == 0 || c1s.size() == 0) return P1s.size() + c1s.size();
 
 		for (int i = 0; i < P1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = c1s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
@@ -160,6 +165,8 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Points and CylindricCurves");
 
+		if (P1s.size() == 0 || PC1s.size() == 0) return P1s.size() + PC1s.size();
+
 		for (int i = 0; i < P1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = PC1s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 				Point* P1 = &P1s[i];
@@ -222,28 +229,13 @@ namespace QuadricsIntersection
 					L1.s_ub() = L1.s_lb() - SQI_EPS;
 				}
 				else {
-					Eigen::Vector3d L1_s_lb = L1.get_point(L1.s_lb());
-					Eigen::Vector3d L1_s_ub = L1.get_point(L1.s_ub());
-					double L1_s_lb_L2_s = L2.get_s(L1_s_lb);
-					double L1_s_ub_L2_s = L2.get_s(L1_s_ub);
-
 					if (L2_s_lb_L1_s > L1.s_lb() - SQI_EPS) {
-						// Line sub_L1;
-						// L1.separate_s(sub_L1, L2_s_lb_L1_s);
-						// sub_L1s.push_back(L1); L1 = sub_L1;
-
-						Line sub_L2;
-						L2.separate_s(sub_L2, L1_s_ub_L2_s);
-						// sub_L2s.push_back(sub_L2);
+						Line sub_L1;
+						L1.separate_s(sub_L1, L2_s_lb_L1_s); L1 = sub_L1;
 					}
 					else if (L2_s_ub_L1_s < L1.s_ub() + SQI_EPS) {
 						Line sub_L1;
 						L1.separate_s(sub_L1, L2_s_ub_L1_s);
-						// sub_L1s.push_back(sub_L1);
-
-						// Line sub_L2;
-						// L2.separate_s(sub_L2, L1_s_lb_L2_s);
-						// sub_L2s.push_back(L2); L2 = sub_L2;
 					}
 				}
 			}
@@ -281,7 +273,9 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Lines and Lines");
 
-		std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+		if (L1s.size() == 0 || L2s.size() == 0) return L1s.size() + L2s.size();
+
+		std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int>>> skip_set;
 		for (int i = 0; i < L1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = L2s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 				if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;
@@ -396,6 +390,8 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Lines and Circles");
 
+		if (L1s.size() == 0 || c1s.size() == 0) return L1s.size() + c1s.size();
+
 		for (int i = 0; i < L1s.size(); ++i) { // note: the vector L1s's size is dymanic, so cannot use i_end = L1s.size.
 			for (int j = 0, j_end = c1s.size(); j < j_end; ++j) { // note: the vector PC1s's size is dymanic, but the newly added curves do not need to be judged again.
 				Line* L1 = &L1s[i];
@@ -421,6 +417,9 @@ namespace QuadricsIntersection
 		std::vector<ParameterizationCylindricCurve>& sub_PC1s
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between a Line and a CylinderCurve");
+
+		if (L1.s_ub() - L1.s_lb() < SQI_EPS) return 0;
+		if (PC1.t_ub() - PC1.t_lb() < SQI_EPS) return 0;
 
 		// init
 		std::vector<Line>().swap(sub_L1s);
@@ -478,10 +477,26 @@ namespace QuadricsIntersection
 				SQI_VERBOSE_ONLY_COUT("tangent");
 
 				double ls = L1.get_s(intersect_points[0].cor());
-				if (L1.is_s_valid(ls) && get_intersections(intersect_points[0], PC1, sub_PC1s) > 0) {
-					// the curve is cutted, next to cut the line
-					Line sub_L1;
-					if (L1.separate_s(sub_L1, ls) == 1) sub_L1s.push_back(sub_L1);
+				if (L1.is_s_valid(ls)) {
+					double C_s, C_t;
+					C1->get_s_t(intersect_points[0].cor(), C_s, C_t);
+
+					std::vector<double> PC_ss;
+					PC1.get_s(C_t, PC_ss);
+
+					if (PC_ss.size() != 1) return 0;
+
+					// SQI_VERBOSE_ONLY_TEST(std::abs(PC_ss[0] - C_s) << " " << C_t << "," << PC1.t_lb() << "," << PC1.t_ub());
+					if (std::abs(PC_ss[0] - C_s) < SQI_LOOSE_EPS 
+						// && C_t > PC1.t_lb() - 5 && C_t < PC1.t_ub() + 5
+						) { // the intersect point is on the curve
+						// cut the curve
+						get_intersections(intersect_points[0], PC1, sub_PC1s);
+
+						// next to cut the line
+						Line sub_L1;
+						if (L1.separate_s(sub_L1, ls) == 1) sub_L1s.push_back(sub_L1);
+					}
 				}
 			}
 			else if (intersect_points.size() == 2) { // intersect: 2 point
@@ -489,34 +504,55 @@ namespace QuadricsIntersection
 
 				double ls1 = L1.get_s(intersect_points[0].cor());
 				double ls2 = L1.get_s(intersect_points[1].cor());
-				if (ls1 > ls2) { // sort ls1 < ls2
-					double tmp = ls1;
-					ls1 = ls2; ls2 = tmp;
+
+				std::vector<double> L1_cutting_ss;
+				std::vector<double> PC1_cutting_ts;
+
+				if (L1.is_s_valid(ls1)) { // will cut the line
+					double C_s, C_t;
+					C1->get_s_t(intersect_points[0].cor(), C_s, C_t);
+
+					std::vector<double> PC_ss;
+					PC1.get_s(C_t, PC_ss);
+
+					// SQI_VERBOSE_ONLY_TEST(std::abs(PC_ss[0] - C_s) << " " << C_t << "," << PC1.t_lb() << "," << PC1.t_ub());
+					if (PC_ss.size() == 1 && std::abs(PC_ss[0] - C_s) < SQI_LOOSE_EPS
+						// && C_t > PC1.t_lb() - 5 && C_t < PC1.t_ub() + 5
+						) { // will cut the curve
+						L1_cutting_ss.push_back(ls1);
+						PC1_cutting_ts.push_back(C_t);
+					}
 				}
 
-				std::vector<ParameterizationCylindricCurve> sub_PC1s_1, sub_PC1s_2;
-				if (L1.is_s_valid(ls1) && get_intersections(intersect_points[0], PC1, sub_PC1s_1) > 0) {
-					for (int i = 0, i_end = sub_PC1s_1.size(); i < i_end; ++i) sub_PC1s.push_back(sub_PC1s_1[i]);
+				if (L1.is_s_valid(ls2)) { // will cut the line
+					double C_s, C_t;
+					C1->get_s_t(intersect_points[1].cor(), C_s, C_t);
 
-					// the curve is cutted, next to cut the line
+					std::vector<double> PC_ss;
+					PC1.get_s(C_t, PC_ss);
+
+					// SQI_VERBOSE_ONLY_TEST(std::abs(PC_ss[0] - C_s) << " " << C_t << "," << PC1.t_lb() << "," << PC1.t_ub());
+					if (PC_ss.size() == 1 && std::abs(PC_ss[0] - C_s) < SQI_LOOSE_EPS 
+						// && C_t > PC1.t_lb() - 5 && C_t < PC1.t_ub() + 5
+						) { // will cut the curve
+						L1_cutting_ss.push_back(ls2);
+						PC1_cutting_ts.push_back(C_t);
+					}
+				}
+
+				std::sort(L1_cutting_ss.begin(), L1_cutting_ss.end());
+				std::sort(PC1_cutting_ts.begin(), PC1_cutting_ts.end());
+
+				// cut the Line L1
+				for (int i = 0, i_end = L1_cutting_ss.size(); i < i_end; ++i) {
 					Line sub_L1;
-					if (L1.separate_s(sub_L1, ls1) == 1) sub_L1s.push_back(sub_L1);
+					if (L1.separate_s(sub_L1, L1_cutting_ss[i]) == 1) sub_L1s.push_back(sub_L1);
 				}
 
-				if (L1.is_s_valid(ls2)) {
-					if (get_intersections(intersect_points[1], PC1, sub_PC1s_2) > 0) {
-						for (int i = 0, i_end = sub_PC1s_2.size(); i < i_end; ++i) sub_PC1s.push_back(sub_PC1s_2[i]);
-
-						Line sub_L2;
-						if (L1.separate_s(sub_L2, ls2) == 1) sub_L1s.push_back(sub_L2);
-					}
-					else if (sub_PC1s.size() > 0 &&
-						get_intersections(intersect_points[1], sub_PC1s[0], sub_PC1s_2) > 0) {
-						for (int i = 0, i_end = sub_PC1s_2.size(); i < i_end; ++i) sub_PC1s.push_back(sub_PC1s_2[i]);
-
-						Line sub_L2;
-						if (L1.separate_s(sub_L2, ls2) == 1) sub_L1s.push_back(sub_L2);
-					}
+				// cut the CylindricCurve PC1
+				for (int i = 0, i_end = PC1_cutting_ts.size(); i < i_end; ++i) {
+					ParameterizationCylindricCurve sub_PC1;
+					if (PC1.separate_t(sub_PC1, PC1_cutting_ts[i]) == 1) sub_PC1s.push_back(sub_PC1);
 				}
 			}
 			else { // not intersect
@@ -533,7 +569,9 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Lines and CylindricCurves");
 
-		std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+		if (L1s.size() == 0 || PC1s.size() == 0) return L1s.size() + PC1s.size();
+
+		std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int>>> skip_set;
 		for (int i = 0; i < L1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = PC1s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 				if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;
@@ -584,6 +622,29 @@ namespace QuadricsIntersection
 			if (1 - std::abs((c1_cor_to_c2_cor / R).dot(c1.nor())) < SQI_EPS) { // two circle are at different planes: result nothing
 				SQI_VERBOSE_ONLY_COUT("circle's plane -- different -- circle's plane");
 				return 0;
+			}
+			else if ((c1.cor() - c2.cor()).norm() < SQI_EPS) { // two circles are overlap
+				Eigen::Vector3d c2_t_lb_point = c2.get_point(c2.t_lb());
+				Eigen::Vector3d c2_t_ub_point = c2.get_point(c2.t_ub());
+				double c2_t_lb_c1_t = c1.get_t(c2_t_lb_point);
+				double c2_t_ub_c1_t = c1.get_t(c2_t_ub_point);
+
+				if (c1.t_lb() > c2_t_lb_c1_t - SQI_EPS && c1.t_ub() < c2_t_ub_c1_t + SQI_EPS) { // eliminate c1
+					c1.t_ub() = c1.t_lb() - SQI_EPS;
+				}
+				else if (c2_t_lb_c1_t > c1.t_lb() - SQI_EPS && c2_t_ub_c1_t < c1.t_ub() + SQI_EPS) { // eliminate c2
+					c2.t_ub() = c2.t_lb() - SQI_EPS;
+				}
+				else {
+					if (c2_t_lb_c1_t > c1.t_lb() + SQI_EPS) {
+						ParameterizationCircle sub_c1;
+						c1.separate_t(sub_c1, c2_t_lb_c1_t);
+					}
+					else if (c2_t_ub_c1_t < c1.t_ub() - SQI_EPS) {
+						ParameterizationCircle sub_c1;
+						c1.separate_t(sub_c1, c2_t_ub_c1_t); c1 = sub_c1;
+					}
+				}
 			}
 			else { // find the intersections between two co-facet circles
 				Eigen::Vector3d c1_cor_mid_c2_cor = 0.5 * (c1.cor() + c2.cor());
@@ -701,7 +762,9 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Circles and Circles");
 
-		std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+		if (c1s.size() == 0 || c2s.size() == 0) return c1s.size() + c2s.size();
+
+		std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int>>> skip_set;
 		for (int i = 0; i < c1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = c2s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 				if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;
@@ -828,7 +891,9 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between Circles and CylindricCurves");
 
-		std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+		if (c1s.size() == 0 || PC1s.size() == 0) return c1s.size() + PC1s.size();
+
+		std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int>>> skip_set;
 		for (int i = 0; i < c1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 			for (int j = 0, j_end = PC1s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 				if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;
@@ -966,19 +1031,19 @@ namespace QuadricsIntersection
 					else {
 						if (overlap_t_lb > PC1.t_lb() + SQI_EPS) {
 							ParameterizationCylindricCurve sub_PC1;
-							PC1.separate_t(sub_PC1, overlap_t_lb);
-							sub_PC1s.push_back(PC1); PC1 = sub_PC1;
+							PC1.separate_t(sub_PC1, overlap_t_lb); PC1 = sub_PC1;
+							// sub_PC1s.push_back(PC1); PC1 = sub_PC1;
 
-							ParameterizationCylindricCurve sub_PC2;
-							PC2.separate_t(sub_PC2, overlap_t_lb);
+							// ParameterizationCylindricCurve sub_PC2;
+							// PC2.separate_t(sub_PC2, overlap_t_lb);
 						}
 						else if (overlap_t_ub < PC1.t_ub() - SQI_EPS) {
 							ParameterizationCylindricCurve sub_PC1;
 							PC1.separate_t(sub_PC1, overlap_t_lb);
 
-							ParameterizationCylindricCurve sub_PC2;
-							PC2.separate_t(sub_PC2, overlap_t_lb);
-							sub_PC2s.push_back(PC2); PC2 = sub_PC2;
+							// ParameterizationCylindricCurve sub_PC2;
+							// PC2.separate_t(sub_PC2, overlap_t_lb);
+							// sub_PC2s.push_back(PC2); PC2 = sub_PC2;
 						}
 					}
 				}
@@ -1082,16 +1147,13 @@ namespace QuadricsIntersection
 	) {
 		SQI_VERBOSE_ONLY_TITLE("compute the intersections between CylindricCurves and CylindricCurves");
 
-		if (PC1s.size() == 0 || PC2s.size() == 0) {
-			SQI_VERBOSE_ONLY_COUT("input is empty");
-			return 0;
-		}
+		if (PC1s.size() == 0 || PC2s.size() == 0) return PC1s.size() + PC2s.size();
 
 		Cylinder* C1 = &(PC1s[0].C());
 		Cylinder* C2 = &(PC2s[0].C());
 
 		if (C1->compare(*C2) == true) { // on the same cylinder
-			std::unordered_set<std::pair<int, int>, pair_hash> skip_set;
+			std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int>>> skip_set;
 			for (int i = 0; i < PC1s.size(); ++i) { // note: this vector's size is dymanic, so cannot use i_end = vector.size.
 				for (int j = 0, j_end = PC2s.size(); j < j_end; ++j) { // note: this vector's size is dymanic, but the newly added curves do not need to be judged again.
 					if (skip_set.find(std::make_pair(i, j)) != skip_set.end()) continue;

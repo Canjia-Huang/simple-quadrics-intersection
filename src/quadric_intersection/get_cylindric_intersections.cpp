@@ -27,6 +27,7 @@ namespace QuadricsIntersection
 			double c = L1_cor_C1_cor.squaredNorm() - L1_cor_C1_cor_dot_C1_nor * L1_cor_C1_cor_dot_C1_nor - C1.r() * C1.r();
 
 			double delta = b * b - 4 * a * c;
+			SQI_VERBOSE_ONLY_TEST("sdadsada:" << delta);
 			if (delta < -SQI_EPS) {
 				//  SQI_VERBOSE_ONLY_COUT("not intersect");
 				// do nothing
@@ -73,11 +74,11 @@ namespace QuadricsIntersection
 			double P1_cor_to_C1_cor_dot_P1_nor = P1_cor_to_C1_cor.dot(P1.nor());
 			double P1_cor_to_C1_dis = std::abs(P1_cor_to_C1_cor_dot_P1_nor);
 
-			if (P1_cor_to_C1_dis > C1.r() + SQI_EPS) { // not intersect
+			if (P1_cor_to_C1_dis > C1.r() + SQI_LOOSE_EPS) { // not intersect
 				SQI_VERBOSE_ONLY_COUT("not interest");
 				return 0;
 			}
-			else if (P1_cor_to_C1_dis < C1.r() - SQI_EPS) { // intersect: result 2 lines
+			else if (P1_cor_to_C1_dis < C1.r() - SQI_LOOSE_EPS) { // intersect: result 2 lines
 				SQI_VERBOSE_ONLY_COUT("intersect");
 
 				double rot_angle = safetyAcos(P1_cor_to_C1_dis / C1.r());

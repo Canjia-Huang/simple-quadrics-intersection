@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -26,7 +26,7 @@
 #define SQI_VERBOSE_ONLY_TEST(x)
 #endif
 
-#define SQI_EPS	1e-12
+#define SQI_EPS	1e-5
 #define SQI_LOOSE_EPS 1e-3
 #define SQI_INFTY 1e12
 #define SQI_PI 3.141592653589793
@@ -358,7 +358,7 @@ namespace QuadricsIntersection {
 			return (p - cor_).dot(nor_);
 		}
 		bool is_s_valid(double s) {
-			if (s > s_lb_ + SQI_EPS && s < s_ub_ - SQI_EPS) return true;
+			if (s > s_lb_ - SQI_EPS && s < s_ub_ + SQI_EPS) return true;
 			return false;
 		}
 		/* separate the line according to s, modify self [s, s_ub], output [s_lb, s].*/
@@ -440,7 +440,7 @@ namespace QuadricsIntersection {
 			return t;
 		}
 		bool is_t_valid(double t) {
-			if (t > t_lb_ + SQI_EPS && t < t_ub_ - SQI_EPS) return true;
+			if (t > t_lb_ - SQI_EPS && t < t_ub_ + SQI_EPS) return true;
 			return false;
 		}
 		bool is_on(Eigen::Vector3d p) {
