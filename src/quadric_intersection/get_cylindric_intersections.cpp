@@ -27,7 +27,6 @@ namespace QuadricsIntersection
 			double c = L1_cor_C1_cor.squaredNorm() - L1_cor_C1_cor_dot_C1_nor * L1_cor_C1_cor_dot_C1_nor - C1.r() * C1.r();
 
 			double delta = b * b - 4 * a * c;
-			SQI_VERBOSE_ONLY_TEST("sdadsada:" << delta);
 			if (delta < -SQI_EPS) {
 				//  SQI_VERBOSE_ONLY_COUT("not intersect");
 				// do nothing

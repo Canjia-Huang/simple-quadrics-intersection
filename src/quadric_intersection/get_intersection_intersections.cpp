@@ -1,4 +1,5 @@
 #include "simple_quadrics_intersection.h"
+#include <set>
 #include <unordered_set>
 #include <boost/container_hash/hash.hpp>
 
@@ -959,6 +960,7 @@ namespace QuadricsIntersection
 			}
 			else {
 				std::vector<ParameterizationCylindricCurve> sub_tmp_PC2 = { PC2 };
+
 				if (lines.size() > 0) { // C1's axis is parallel to C2's axis
 					get_intersections(lines, sub_tmp_PC2);
 				}
@@ -970,7 +972,7 @@ namespace QuadricsIntersection
 					return 0;
 				}
 
-				std::unordered_set<double> potential_t2s;
+				std::set<double> potential_t2s; // should be ordered
 				for (int i = 0, i_end = sub_tmp_PC2.size(); i < i_end; ++i) {
 					potential_t2s.insert(sub_tmp_PC2[i].t_lb());
 					potential_t2s.insert(sub_tmp_PC2[i].t_ub());
@@ -1049,16 +1051,16 @@ namespace QuadricsIntersection
 				}
 				else {
 					// check start endpoint
-					/* {
+					{
 						std::vector<double> ss1, ss2;
 						if (PC1.get_s(overlap_t_lb, ss1) == 1 && PC2.get_s(overlap_t_lb, ss2) == 1) {
-							if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
+							if (std::abs(ss1[0] - ss2[0]) < SQI_LOOSE_EPS) { // cut
 								ParameterizationCylindricCurve sub_PC1, sub_PC2;
 								if (PC1.separate_t(sub_PC1, overlap_t_lb) == 1) sub_PC1s.push_back(sub_PC1);
 								if (PC2.separate_t(sub_PC2, overlap_t_lb) == 1) sub_PC2s.push_back(sub_PC2);
 							}
 						}
-					}*/
+					}
 
 					int pre_status = 0, status = 0;
 					double pre_t;
@@ -1123,16 +1125,16 @@ namespace QuadricsIntersection
 					}
 
 					// check end endpoint
-					/* {
+					{
 						std::vector<double> ss1, ss2;
 						if (PC1.get_s(overlap_t_ub, ss1) == 1 && PC2.get_s(overlap_t_ub, ss2) == 1) {
-							if (std::abs(ss1[0] - ss2[0]) < SQI_EPS) { // cut
+							if (std::abs(ss1[0] - ss2[0]) < SQI_LOOSE_EPS) { // cut
 								ParameterizationCylindricCurve sub_PC1, sub_PC2;
 								if (PC1.separate_t(sub_PC1, overlap_t_ub) == 1) sub_PC1s.push_back(sub_PC1);
 								if (PC2.separate_t(sub_PC2, overlap_t_ub) == 1) sub_PC2s.push_back(sub_PC2);
 							}
 						}
-					}*/
+					}
 				}
 			}
 		}
@@ -1181,6 +1183,7 @@ namespace QuadricsIntersection
 			}
 		}
 		else { // on different cylinders
+
 			// get the intersections between C1 and C2
 			std::vector<Point> points;
 			std::vector<Line> lines;
@@ -1204,14 +1207,16 @@ namespace QuadricsIntersection
 				get_intersections(tmp_lines2, PC2s);
 			}
 			else if (curves.size() > 0) {
+
 				// note: curves are on the cylinder C2!
 				int original_PC2s_size = PC2s.size();
-				get_intersections(curves, PC2s, t_step);
+				std::vector<ParameterizationCylindricCurve> tmp_PC2s = PC2s;
+				get_intersections(curves, tmp_PC2s, t_step);
 
-				// cut the PC1
-				std::vector<Point> cutting_points;
-				for (int i = original_PC2s_size, i_end = PC2s.size(); i < i_end; ++i) {
-					ParameterizationCylindricCurve* PC = &PC2s[i];
+				// get cut information
+				std::vector<Point> PCs_cutting_points;
+				for (int i = original_PC2s_size, i_end = tmp_PC2s.size(); i < i_end; ++i) {
+					ParameterizationCylindricCurve* PC = &tmp_PC2s[i]; // this curve is on C2
 					double t2 = PC->t_ub();
 
 					std::vector<double> ss2;
@@ -1222,10 +1227,14 @@ namespace QuadricsIntersection
 					}
 
 					Eigen::Vector3d intersect_point = C2->get_point(ss2[0], t2);
-					cutting_points.push_back(Point(intersect_point));
+					PCs_cutting_points.push_back(Point(intersect_point));
 				}
 
-				get_intersections(cutting_points, PC1s);
+				// cut PC1
+				get_intersections(PCs_cutting_points, PC1s);
+
+				// cut PC2
+				get_intersections(PCs_cutting_points, PC2s);
 			}
 			else { // not intersect
 				// do nothing
