@@ -137,6 +137,9 @@ namespace QuadricsIntersection {
 		double get_signed_distance(Eigen::Vector3d P) {
 			return (P - cor_).dot(nor_);
 		}
+		Eigen::Vector3d get_normal() {
+			return nor_;
+		}
 		bool is_on_positive_side(Eigen::Vector3d P) {
 			if (get_signed_distance(P) > 0) return true;
 			return false;
@@ -220,6 +223,9 @@ namespace QuadricsIntersection {
 		double get_signed_distance(Eigen::Vector3d P) {
 			return  (cor_ + (P - cor_).dot(nor_) * nor_ - P).norm() - r_;
 		}
+		Eigen::Vector3d get_normal(Eigen::Vector3d P) {
+			return (P - (cor_ + (P - cor_).dot(nor_) * nor_)).normalized();
+		}
 		bool is_on_positive_side(Eigen::Vector3d P) {
 			if (get_signed_distance(P) > 0) return true;
 			return false;
@@ -292,6 +298,9 @@ namespace QuadricsIntersection {
 		}
 		double get_signed_distance(Eigen::Vector3d P) {
 			return  (P - cor_).norm() - r_;
+		}
+		Eigen::Vector3d get_normal(Eigen::Vector3d P) {
+			return (P - cor_).normalized();
 		}
 		bool is_on_positive_side(Eigen::Vector3d P) {
 			if (get_signed_distance(P) > 0) return true;
