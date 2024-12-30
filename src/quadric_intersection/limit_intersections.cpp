@@ -14,8 +14,25 @@ namespace QuadricsIntersection
 	}
 
 	bool Line::limited_by(Plane& P) {
+		if (P.constraint_radius > SQI_EPS) { // limit by the ball center at cor_ with radius equal to constraint_radius
+			Eigen::Vector3d cor_to_P_cor = P.cor() - cor_;
+			double cor_to_P_cor_dot_nor = cor_to_P_cor.dot(nor_); // proj's s
+			Eigen::Vector3d P_cor_proj = cor_ + cor_to_P_cor_dot_nor * nor_;
+			double P_cor_to_proj_sq_dis = (P.cor() - P_cor_proj).squaredNorm();
+			double extend_s = std::sqrt(P.constraint_radius * P.constraint_radius - P_cor_to_proj_sq_dis);
+
+			double limit_s_lb = cor_to_P_cor_dot_nor - extend_s;
+			double limit_s_ub = cor_to_P_cor_dot_nor + extend_s;
+
+			s_lb_ = std::max(s_lb_, limit_s_lb);
+			s_ub_ = std::min(s_ub_, limit_s_ub);
+			if (s_ub_ - s_lb_ < SQI_EPS) return false;
+			return true;
+		}
+
 		if (P.vertices.size() != 3) return true;
 
+		// limit by the triangle defined by vertices
 		Eigen::Vector3d* P1 = &(P.vertices[0]);
 		Eigen::Vector3d* P2 = &(P.vertices[1]);
 		Eigen::Vector3d* P3 = &(P.vertices[2]);
@@ -393,7 +410,8 @@ namespace QuadricsIntersection
 
 				double Cs, Ct;
 				C.get_s_t(mid_point, Cs, Ct);
-				if (Cs < C.s_lb() || Cs > C.s_ub() || Ct < C.t_lb() || Ct > C.t_ub()) continue;
+				if (Cs < C.s_lb() || Cs > C.s_ub() || 
+					Ct < C.t_lb() || Ct > C.t_ub()) continue;
 
 				sub_PCs.push_back(sub_PC);
 			}

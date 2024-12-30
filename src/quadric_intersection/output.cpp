@@ -34,6 +34,22 @@ namespace QuadricsIntersection
 			points = vertices;
 			faces.push_back(Eigen::Vector3i(0, 1, 2));
 		}
+		else if (constraint_radius > SQI_EPS) {
+			points.push_back(cor_);
+
+			Eigen::Vector3d u = get_perpendicular_normal(nor_);
+			Eigen::Vector3d v = (u.cross(nor_)).normalized();
+			u *= w; v *= w;
+
+			for (double angle = 0; angle < 360 - SQI_EPS; angle += 10) {
+				points.push_back(cor_ + std::cos(ang2rad(angle)) * u + std::sin(ang2rad(angle)) * v);
+			}
+			int prev_i = points.size() - 1;
+			for (int i = 1; i < points.size(); ++i) {
+				faces.push_back(Eigen::Vector3i(0, prev_i, i));
+				prev_i = i;
+			}
+		}
 		else {
 			Eigen::Vector3d u = get_perpendicular_normal(nor_);
 			Eigen::Vector3d v = nor_.cross(u).normalized();

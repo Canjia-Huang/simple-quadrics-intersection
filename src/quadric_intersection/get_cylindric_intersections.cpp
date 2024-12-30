@@ -472,7 +472,7 @@ namespace QuadricsIntersection
 		}
 
 		// limited by cylinders
-		if (curves.size() > 0) {
+		/*if (curves.size() > 0) {
 			std::vector<ParameterizationCylindricCurve> tmp_curves;
 			for (int i = 0, i_end = curves.size(); i < i_end; ++i) {
 				if (curves[i].limited_by()) tmp_curves.push_back(curves[i]);
@@ -485,7 +485,7 @@ namespace QuadricsIntersection
 				for (int ii = 0, ii_end = sub_PCs.size(); ii < ii_end; ++ii) tmp_curves2.push_back(sub_PCs[ii]);
 			}
 			curves.swap(tmp_curves2);
-		}
+		}*/
 
 		return points.size() + lines.size() + curves.size();
 	}
