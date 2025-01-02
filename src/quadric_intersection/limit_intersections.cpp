@@ -14,7 +14,7 @@ namespace QuadricsIntersection
 	}
 
 	bool Line::limited_by(Plane& P) {
-		if (P.constraint_radius > SQI_EPS) { // limit by the ball center at cor_ with radius equal to constraint_radius
+		if (P.constraint_radius > SQI_LOOSE_EPS) { // limit by the ball center at cor_ with radius equal to constraint_radius
 			Eigen::Vector3d cor_to_P_cor = P.cor() - cor_;
 			double cor_to_P_cor_dot_nor = cor_to_P_cor.dot(nor_); // proj's s
 			Eigen::Vector3d P_cor_proj = cor_ + cor_to_P_cor_dot_nor * nor_;

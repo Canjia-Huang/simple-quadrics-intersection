@@ -13,7 +13,7 @@
 
 #define USE_FOR_OFFSET_MESH_GENERATION
 
-//#define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
+// #define SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #ifdef SIMPLE_QUADRICS_INTERSECTION_VERBOSE_
 #define SQI_VERBOSE_ONLY_TITLE(x) std::cout << "\033[32m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [green] white cout
 #define SQI_VERBOSE_ONLY_COUT(x) std::cout << "\033[33m" << "[" << __FUNCTION__ << "]" << "\033[0m" << " " << x << std::endl // [yellow] white cout
@@ -284,6 +284,16 @@ namespace QuadricsIntersection {
 			v_ = nor.cross(u_).normalized();
 			s_lb_ = s_lb; s_ub_ = s_ub;
 		}
+		Sphere& operator =(const Sphere& S) {
+			if (this != &S) {
+				this->cor_ = S.cor_;
+				this->nor_ = S.nor_;
+				this->r_ = S.r_;
+				this->u_ = S.u_; this->v_ = S.v_;
+				this->s_lb_ = S.s_lb_; this->s_ub_ = S.s_ub_;
+			}
+			return *this;
+		}
 		Eigen::Vector3d get_point(double s, double t) {
 			double rad_s = ang2rad(s);
 			double rad_t = ang2rad(t);
@@ -536,11 +546,7 @@ namespace QuadricsIntersection {
 			s_part_ = 0;
 			C_ = Cylinder();
 		}
-		~ParameterizationCylindricCurve() {
-			std::vector<double>().swap(a_t_);
-			std::vector<double>().swap(b_t_);
-			std::vector<double>().swap(c_t_);
-		};
+		~ParameterizationCylindricCurve() {};
 		ParameterizationCylindricCurve(
 			std::vector<double>& a_t, std::vector<double>& b_t, std::vector<double>& c_t,
 			Cylinder& C
